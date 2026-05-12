@@ -8,6 +8,21 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased] — 2026-05-12
 
+### Added — Crucible v0.6 protocol layer
+
+The one remaining hole from v0.5 audit notes (stuck disputed markets) is now closed.
+
+- `contracts/src/v06/CrucibleMarketV6.sol` adds:
+  - **`forceResolveStale(marketId)`** — permissionless force-settle for stuck disputed markets. Callable by anyone after `STALE_RESOLVE_GRACE = 24 hours` from `disputedAt` AND when the resolver still cannot resolve (canResolve = false because no validators revealed). Settles at scoreBps=10000 (service wins by default — they delivered, validators ghosted, agent could have not disputed).
+  - New `disputedAt` field on Market struct (set in `dispute()`) — times the stale grace.
+  - New `MarketForceResolved` event for indexers.
+  - EIP-712 domain bumped to `"6"` (same typehash structure as v0.5; just version isolation).
+- `contracts/test/CrucibleMarketV6.t.sol` — 11 tests including stuck-market resolution at score=10000, callable-by-anyone, grace-not-passed revert, resolver-ready revert (when reveal happened normally), v0.5 carry-overs (per-market bondBps, subscription, openMarket).
+
+Combined: **142 forge tests passing across v0 + v0.2 + v0.3 + v0.4 + v0.5 + v0.6**.
+
+This effectively closes the "open for v0.5+" items list. Remaining work is operational (mainnet config, validator network bootstrapping) rather than protocol design.
+
 ### Added — Crucible v0.5 protocol layer
 
 The v0.5 release closes the three remaining items I marked "open for v0.5+" in the v0.4 audit notes (the per-market bond config, the commit-reveal voting, and the configurable MIN_STAKE for mainnet).
