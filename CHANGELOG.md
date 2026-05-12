@@ -8,6 +8,45 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased] — 2026-05-12
 
+### Added — Crucible v0.4 protocol layer
+
+The v0.4 release directly attacks the three biggest items I marked "still open" in the v0.3 audit notes:
+
+- `contracts/src/v04/IResolverSubscriptionReceiver.sol` — new interface (`notifyValidatorSubscription()`) that lets the market push a small always-on fee to resolvers on every settlement.
+- `contracts/src/v04/TestcaseResolverV4.sol` — adds:
+  - **MasterChef-style validator subscription pool**. `accSubscriptionPerStake` accumulator settles every validator's earned subscription on stake / unstake / claim. `claimSubscription()` lets validators withdraw at any time. `earnedSubscription(address)` is a view helper. This solves the v0.3 "validators only earn during disputes" problem — validators now earn proportional to stake on EVERY market settlement.
+  - **Stake voting weight cap** (`MAX_VOTING_WEIGHT_BPS = 4000`). At resolve time, no single validator's effective stake for median computation exceeds 40% of total voter stake. Tested with `test_votingCap_capsLargeStake`: a 55%-stake validator voting against a 45%-stake honest cohort would win under v0.3 (median = 0); under v0.4 the cap lets the honest cohort outweigh them (median = 10000).
+  - **ERC-8004 reputation events**. `ValidatorReputation(validator, marketId, vote, deviation, slashedAmount, honest)` emitted for each voter on resolve — a stable schema for off-chain reputation indexers.
+  - Subscription accumulator is settled before slashing so slashed validators don't lose their pre-slash sub earnings.
+- `contracts/src/v04/CrucibleMarketV4.sol` — adds:
+  - **`VALIDATOR_SUBSCRIPTION_BPS = 10`** (0.10% of agent escrow) charged on EVERY settlement (optimistic + disputed), routed to the resolver via `notifyValidatorSubscription()`. Graceful fallback: if resolver doesn't implement the interface, value stays in escrow.
+  - **`ServiceReputation(service, marketId, finalScoreBps, bondSlashed)`** emitted on every resolve — ERC-8004-compatible service reputation feed.
+  - Extended `MarketResolved` event signature includes both `resolverFee` and `validatorSubscription` for indexer transparency.
+  - EIP-712 domain version `"4"` — cross-version replay isolation against v0 / v0.2 / v0.3.
+
+### Added — v0.4 tests
+
+- 14 `TestcaseResolverV4Test`: subscription accumulator math (single, equal pair, unequal stake, late joiner, claim+zero, zeroTotalStake edge), voting cap (caps 55% stake / no-op on uncapped scenario), ERC-8004 reputation event emission, slash settles subscription before stake reduction, pendingVotes guard.
+- 9 `CrucibleMarketV4Test`: EIP-712 v4 domain, optimistic subscription paid, optimistic subscription bounces with MockResolver, disputed subscription+fee both paid, ServiceReputation event, dispute requires exact bond, score=10000 settlement (frivolous dispute), requiredDisputeBond view, openMarket happy path.
+
+Combined: **99 forge tests passing across v0 + v0.2 + v0.3 + v0.4**.
+
+### Economic implications
+
+A market with $0.01 USDC of agent escrow now pays:
+- `0.001 USDC` (10 bps) into the validator subscription pool — distributed pro-rata across all stakers
+- `0.0002 USDC` (2 bps) into the dispute resolver pool — only on dispute path, only to participating voters
+- `0.0005 USDC` (5 bps) dispute bond from the agent — only when agent calls dispute
+
+For a busy service (10k calls/day at $0.01 each): the validator pool accrues $10/day, split across staked validators. A validator with 10% of total stake earns $1/day on a 10-USDC stake (~3.65x USDC APY before any dispute upside). Earnings track stake share linearly. This is the equilibrium the v0.3 audit said was missing.
+
+### What v0.4 still doesn't solve (open for v0.5+)
+
+- **MIN_STAKE = 0.1 USDC** still low; mainnet config should raise.
+- **Per-market dispute bond configuration** — still a contract constant; OpenAuth typehash change is the cost.
+- **Commit-reveal voting** — still vulnerable to validators copying each others' votes (low risk on a 1-hour voting window but a hardening point).
+- **Median is dragged by a single validator at exactly the 40% cap** — the cap helps in the 50–70% range but caps don't solve the >70% case (and can't, mechanically).
+
 ### Added — Crucible v0.3 protocol layer
 
 - `contracts/src/v03/CrucibleMarketV3.sol` — v0.3 market with:

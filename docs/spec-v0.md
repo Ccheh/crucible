@@ -534,3 +534,126 @@ The IResolverFeeReceiver interface (defined in `v02/`) is reused unchanged — v
 
 Combined v0 + v0.2 + v0.3: **76/76 tests passing**, all forge-verifiable via `forge test`.
 
+---
+
+# Crucible Protocol — v0.4 Addendum
+
+> **Date**: 2026-05-12
+> **Status**: Designed and implemented (99/99 tests passing across all versions, not yet deployed).
+> **Scope**: Three changes that close the three remaining "open" items from the v0.3 audit. Implements the missing validator equilibrium, the stake-cap protection, and the ERC-8004-compatible event surface.
+
+## What v0.4 adds
+
+### 1. Always-on validator subscription (MasterChef-style accumulator)
+
+Every settlement (optimistic AND disputed) sends `VALIDATOR_SUBSCRIPTION_BPS = 10` (0.10% of agent escrow) to the resolver via the new `IResolverSubscriptionReceiver.notifyValidatorSubscription()` interface. The resolver pools these subscriptions globally with the standard accumulator pattern:
+
+```
+accSubscriptionPerStake += (subscription * 1e18) / totalStake
+validatorEarning[v] = (stake[v] * accSubscriptionPerStake / 1e18) - subscriptionDebt[v]
+```
+
+When a validator stakes/unstakes, `_settleValidator` snapshots their earned amount into `pendingSubscriptionReward[v]` and resets their debt. They claim with `claimSubscription()`.
+
+This means validators now earn a baseline yield from normal protocol operation, not just from rare disputes. **This is the v0.4 fix for the v0.3 economic equilibrium concern.**
+
+### 2. Stake voting weight cap (`MAX_VOTING_WEIGHT_BPS = 4000`)
+
+At resolve time, each validator's effective stake for the median computation is `min(realStake, totalVoterStake * 40% / 100%)`. No single voter can swing the median by more than 40% of total voter weight.
+
+The protection range:
+- < 40% stake: cap is a no-op; mechanism behaves identically to v0.3
+- 40–70% stake: cap kicks in and lets the rest of the voters outweigh the dominant one
+- > 70% stake: even capping to 40% leaves the dominant one as a plurality (insufficient by itself, but combined with sympathetic minority votes still potentially controlling)
+
+The cap **does** affect slashing — the cap is only applied to weight in the median computation. The slash penalty is computed against REAL stake (so a capped large validator who deviates from consensus still loses real money proportional to their full stake).
+
+### 3. ERC-8004-compatible reputation events
+
+Two new events with stable schemas designed for off-chain ERC-8004 reputation indexers:
+
+```solidity
+// Per-validator after each resolved market
+event ValidatorReputation(
+    address indexed validator,
+    bytes32 indexed marketId,
+    uint16 vote,
+    uint256 deviation,
+    uint256 slashedAmount,
+    bool honest
+);
+
+// Per-service after each settlement
+event ServiceReputation(
+    address indexed service,
+    bytes32 indexed marketId,
+    uint16 finalScoreBps,
+    uint256 bondSlashed
+);
+```
+
+This aligns with Circle's Agent Stack (Agent Marketplace + ERC-8004) which expects reputation data to be queryable from on-chain events.
+
+## Settlement math
+
+### Optimistic path (collectAfterWindow)
+
+```
+subscription   = agentEscrow * VALIDATOR_SUBSCRIPTION_BPS / 10000
+settleEscrow   = agentEscrow - subscription (if resolver accepts)
+paidToService  = settleEscrow
+```
+
+### Disputed path (resolveDisputed)
+
+```
+subscription   = agentEscrow * VALIDATOR_SUBSCRIPTION_BPS / 10000
+resolverFee    = agentEscrow * RESOLVER_FEE_BPS / 10000
+settleEscrow   = agentEscrow - subscription (if accepted) - resolverFee (if accepted)
+paidToService  = settleEscrow * scoreBps / 10000
+refundEscrow   = settleEscrow - paidToService
+bondSlash      = bondLocked  * (10000 - scoreBps) / 10000
+bondToService  = disputeBond * scoreBps / 10000
+bondRefund     = disputeBond - bondToService
+```
+
+A $0.01 escrow now incurs:
+- 0.10% subscription always
+- 2.00% resolver fee on dispute
+- 5.00% dispute bond from agent on dispute
+
+For a healthy market with rare disputes (say 1% dispute rate), the effective cost to a service is dominated by the always-on 0.10% subscription. For the validator economics: a network with 10k calls/day at $0.01 each generates $10/day of subscription, split pro-rata by stake.
+
+## Voting weight cap example (the key test)
+
+| Stake | v0.3 weight | v0.4 weight | Vote |
+|---|---|---|---|
+| v1: 55% | 55% | 40% (capped) | 0 |
+| v2: 30% | 30% | 30% | 10000 |
+| v3: 15% | 15% | 15% | 10000 |
+
+- Under v0.3: median pivot at cumulative ≥ 50% → first entry (v1's 55% > 50%) → **median = 0**. v1 dominates.
+- Under v0.4: total capped weight = 85; threshold = 42.5; cumulative [40 (v1), 70 (v2+v1), 85 (all)]. First ≥ 42.5 is at v2 → **median = 10000**. Honest majority recovers.
+
+## What v0.4 does NOT solve (open for v0.5+)
+
+- **MIN_STAKE = 0.1 USDC** unchanged for testnet ease. Mainnet config should raise to 1+ USDC.
+- **Per-market dispute bond configuration** — still a contract constant. Adding to OpenAuth would change the EIP-712 typehash (heavy SDK churn).
+- **Commit-reveal voting** — still vulnerable to validators front-running each others' votes. Low risk on a 1-hour voting window with stake-weighted aggregation, but real for high-value markets.
+- **>70% stake attacker** — the 40% cap helps in the 40–70% range but cannot recover correctness when one party holds supermajority. There is no on-chain mechanism that can; this would require a stake distribution policy at validator-network level.
+
+## Implementation footprint
+
+```
+contracts/src/v04/
+├── IResolverSubscriptionReceiver.sol   ~15 LOC
+├── CrucibleMarketV4.sol                ~310 LOC
+└── TestcaseResolverV4.sol              ~330 LOC
+
+contracts/test/
+├── CrucibleMarketV4.t.sol               9 tests passing
+└── TestcaseResolverV4.t.sol            14 tests passing
+```
+
+Combined v0 + v0.2 + v0.3 + v0.4: **99/99 tests passing**.
+
