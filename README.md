@@ -263,6 +263,6 @@ If you're considering integrating, treat this as **research infrastructure on a 
 
 ## Author
 
-[Zen Chen](https://github.com/Ccheh) — Strategy Researcher @ Polymarket. MSc Data Science (Sheffield).
+[Zen Chen](https://github.com/Ccheh) — MSc Data Science (Sheffield). Building on Arc.
 
 Crucible's resolution mechanism is closest in spirit to **UMA's optimistic-oracle stake-weighted Schelling consensus**, applied to AI service quality at per-call granularity. The "prediction market" framing in the lead is a marketing handle; the precise label is documented in [The thesis](#the-thesis) section.
