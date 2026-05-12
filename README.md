@@ -50,13 +50,38 @@ Anyone can be any role. No permissioning. No KYC. No central operator.
 | `TEEResolver` | Inference-integrity proofs | Trusted hardware attestation | v0.3 |
 | `ZkMlResolver` | Pure cryptographic proof of inference | ZK ML | future |
 
-## v0 scope (what we're shipping first)
+## v0 scope (shipped today)
 
-- **Contracts**: `CrucibleRegistry`, `MarketFactory`, `QualityMarket`, `ResolutionEngine`, `ReputationWriter`, `IResolver`, `TestcaseResolver`
-- **First use case**: paid code generation (e.g., agent pays an LLM-backed API to write a function; pays only if testcases pass)
-- **First demo**: a Cadence-compatible service that returns generated Python code; testcases run by validators; agent's escrow refunds if tests fail
-- **Timeline**: 6 weeks to demo-ready, 12 weeks to first real integration
-- **NOT in v0**: ValidatorVoteResolver, TEE, ZK ML, mainnet, audit
+✅ **Contracts deployed to Arc Testnet** (see addresses above):
+- `CrucibleMarket` — per-call market with EIP-712 service auth + optimistic dispute window
+- `TestcaseResolver` — permissionless validator stake/vote network with 7-day unstake cooldown, stake-weighted score consensus, 1-hour voting window
+- `IResolver` — pluggable verification interface
+- `MockResolver` — for testing only
+
+✅ **30 passing tests**:
+- 13 CrucibleMarket: bond pool, openMarket happy/error paths, dispute lifecycle, score 0/5000 payment math
+- 17 TestcaseResolver: stake/unstake with cooldown, vote validation (min stake, range, double-vote), stake-weighted resolution, view function correctness
+
+⏳ **Next (Week 2 onward)**:
+- TypeScript SDK (`@crucible/sdk` for service + agent + validator clients)
+- End-to-end paid code-gen demo (LLM API service + validator agent + market resolution)
+- Mainnet-ready audit prep doc
+- ValidatorVault economic stress tests
+
+❌ **Not in v0** (slated for v0.2+): slashing, reward fee pool, ZK ML resolver, TEE attestation resolver, mainnet, independent audit.
+
+## First use case: paid code generation
+
+The motivating real-world example:
+
+1. Agent pays a code-gen service 0.05 USDC to write a Python function.
+2. Service returns the code + posts commitment hash on-chain.
+3. Agent runs the testcases locally; if they pass, lets the dispute window expire — service gets paid in full.
+4. If tests fail, agent disputes within the window.
+5. Validators (anyone with 0.1 USDC staked in TestcaseResolver) run the testcases themselves, vote stake-weighted on the pass rate.
+6. After voting window closes, contract auto-resolves: payment to service = `escrow × score / 10000`; remainder + proportional service-bond slash → agent.
+
+**This is the protocol that's missing from Circle Nanopayments / x402 / Stripe / Lightning** — none of them have a quality-conditional settlement layer.
 
 ## Comparison: Crucible × Cadence (the relationship)
 
@@ -96,7 +121,15 @@ A Crucible-protected service can:
 
 ## Status
 
-**Pre-alpha.** Specification phase. No contracts deployed yet. No tests yet. See [docs/spec-v0.md](docs/spec-v0.md) for current design.
+**Pre-alpha — v0 LIVE on Arc Testnet** (2026-05-12).
+
+| Contract | Arc Testnet address |
+|---|---|
+| **CrucibleMarket** | [`0x61996d505d6510a339f39c9923519b2f5350f61c`](https://testnet.arcscan.app/address/0x61996d505d6510a339f39c9923519b2f5350f61c) |
+| **TestcaseResolver** | [`0xa12874e9f77be35efb9e3aeb19eb547b9f224195`](https://testnet.arcscan.app/address/0xa12874e9f77be35efb9e3aeb19eb547b9f224195) |
+| **MockResolver** (for testing) | [`0x76696e3c541eb32c81cfc1cbfb3e5e5ef1c4d35f`](https://testnet.arcscan.app/address/0x76696e3c541eb32c81cfc1cbfb3e5e5ef1c4d35f) |
+
+**30 tests passing** (13 CrucibleMarket + 17 TestcaseResolver). See [docs/spec-v0.md](docs/spec-v0.md) for design.
 
 ## License
 
