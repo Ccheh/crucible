@@ -458,3 +458,79 @@ contracts/test/
 
 Combined v0 + v0.2: **54/54 tests passing**, all forge-verifiable via `forge test`.
 
+---
+
+# Crucible Protocol — v0.3 Addendum
+
+> **Date**: 2026-05-12
+> **Status**: Designed and implemented (76/76 tests passing across v0 + v0.2 + v0.3, not yet deployed).
+> **Scope**: Two changes that close the most-cited attack vectors from the v0.2 audit (median consensus + dispute bond).
+
+## What v0.3 adds
+
+1. **Stake-weighted median consensus** in `TestcaseResolverV3`, replacing the stake-weighted mean of v0.2. A minority outlier voting an extreme value can no longer drag the consensus regardless of their stake (as long as their stake is below majority). Closes the V3-style "single large stake drags resolution" attack documented in `docs/security-considerations.md`.
+
+2. **Dispute bond** in `CrucibleMarketV3`. Agents must attach a 5% bond when calling `dispute(marketId)`. Bond is split at settlement proportional to score (score=10000 → bond to service, score=0 → bond refunded to agent). Closes the V3-style "free dispute spam" attack vector.
+
+## Median algorithm
+
+```
+At resolve(marketId):
+  1. Insertion-sort (vote, stake) pairs by vote ascending. O(M²) memory ops.
+  2. threshold = totalVotedStake / 2
+  3. Walk sorted array; the first index where cumulative stake >= threshold
+     is the median. Return its vote.
+```
+
+Median runtime: O(M²) sort + O(M) walk. For typical M ≤ 20 voters per market on Arc Testnet, sort cost is <250 ops — gas-bounded. For M > 60 a future version should switch to sorted-on-insert.
+
+## Dispute-bond settlement math
+
+```
+On dispute(marketId):
+  expected = (agentEscrow * DISPUTE_BOND_BPS) / 10000   // 5%
+  require msg.value == expected
+  market.disputeBond = expected
+  market.status = Disputed
+
+On resolveDisputed(marketId, ...):
+  // ... compute settleEscrow, paidToService, refundEscrow, bondSlash as in v0.2
+  bondToService = disputeBond * scoreBps / 10000
+  bondRefund    = disputeBond - bondToService
+  totalToService = paidToService + bondToService
+  totalToAgent   = refundEscrow + bondSlash + bondRefund
+```
+
+Outcomes:
+- scoreBps = 0 (service totally wrong): agent gets all of (escrow refund, full bond slash, full bond refund). Zero cost for justified dispute.
+- scoreBps = 10000 (service totally right): service gets all of (full escrow, dispute bond). Agent loses 5% of escrow for frivolous dispute.
+- scoreBps = 5000 (middle): bond splits evenly; agent partially compensated.
+
+## Cross-version isolation
+
+`CrucibleMarketV3` ships with EIP-712 domain `"Crucible" version "3"`. v0 / v0.2 / v0.3 signatures cannot cross-replay between contracts (each pair has distinct domain separators).
+
+## What v0.3 still does NOT solve (open for v0.4+)
+
+- **MIN_STAKE = 0.1 USDC** unchanged for testnet ease. Mainnet config will raise it.
+- **Validator equilibrium at low dispute rate** — validators still only earn during disputes. Open question for the economic model.
+- **Per-market dispute bond configuration** — v0.3 bond is a contract constant. Future versions may let services specify their own bond rate via OpenAuth (which would bump the EIP-712 typehash).
+- **No on-chain dispute reputation** — ERC-8004 events still v0.4+.
+- **No commit-reveal for votes** — validators can see each others' votes. Front-running risk is low because voting window is short and votes are weighted by stake, but still a future hardening.
+
+## Implementation footprint
+
+```
+contracts/src/v03/
+├── CrucibleMarketV3.sol           ~285 LOC (adds dispute bond + bond split math)
+└── TestcaseResolverV3.sol         ~265 LOC (replaces mean with insertion-sort + median)
+
+contracts/test/
+├── CrucibleMarketV3.t.sol          11 tests passing
+└── TestcaseResolverV3.t.sol        11 tests passing
+```
+
+The IResolverFeeReceiver interface (defined in `v02/`) is reused unchanged — v0.3 resolver implements the same interface so any future market version that accepts `IResolverFeeReceiver` can plug in v0.3 resolvers and vice versa.
+
+Combined v0 + v0.2 + v0.3: **76/76 tests passing**, all forge-verifiable via `forge test`.
+

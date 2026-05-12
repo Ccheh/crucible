@@ -8,6 +8,35 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased] — 2026-05-12
 
+### Added — Crucible v0.3 protocol layer
+
+- `contracts/src/v03/CrucibleMarketV3.sol` — v0.3 market with:
+  - **Dispute bond**: agents must attach `(agentEscrow * DISPUTE_BOND_BPS) / 10000` (5% of escrow) of additional value when calling `dispute(marketId)`. The bond is split between service and agent at settlement proportional to the final scoreBps — score=10000 sends the entire bond to the service (cost of frivolous disputes), score=0 returns it fully to the agent (justified dispute).
+  - **EIP-712 domain version `"3"`** — v0.3 sigs cannot cross-replay against v0/v0.2.
+  - **`requiredDisputeBond(marketId)`** view helper for off-chain agents.
+  - All v0.2 mechanics preserved: bond pool, resolver whitelist, RESOLVER_FEE_BPS routing, OpenAuth EIP-712 typehash unchanged.
+- `contracts/src/v03/TestcaseResolverV3.sol` — v0.3 resolver with:
+  - **Stake-weighted median consensus** replacing v0.2's stake-weighted mean. A minority outlier voting an extreme value can no longer drag the consensus regardless of their stake (so long as their stake is less than majority).
+  - Algorithm: insertion-sort `(vote, stake)` pairs at resolve time, then find smallest score `v` such that cumulative stake of `votes ≤ v` covers ≥ 50% of total voted stake.
+  - All other v0.2 mechanics carried unchanged: slashing on distance-from-consensus, fee-pool intake via `notifyFee`, pendingVotes-aware unstake, claimRewards.
+- v0.3 resolver name returns `"TestcaseResolverV3"`.
+
+### Added — v0.3 tests (22 new, 76 total across v0 + v0.2 + v0.3)
+
+- 11 `CrucibleMarketV3Test`: EIP-712 v3 domain check, dispute requires exact bond (revert cases), score=0 / 5000 / 10000 dispute-bond split math, optimistic-path zero-bond zero-fee, `requiredDisputeBond` view, openMarket happy path.
+- 11 `TestcaseResolverV3Test`: median single-voter, median equal-stake, **median-outlier-resistance** (the test that justifies v0.3: 4 honest + 1 outlier at extreme → mean would be 7200 but median = 9000), stake-weighted median with no majority, majority-stake-wins (intentional), slashing on outlier vs median, fee distribution, pendingVotes guard, claimRewards.
+
+The median-outlier-resistance test is the most important: under v0.2 a 20%-stake outlier voting 0 drags the mean from 9000 down to 7200 (the consensus is materially wrong). Under v0.3 the median stays at 9000 and the outlier is slashed.
+
+Combined: **76 forge tests passing** across v0 + v0.2 + v0.3.
+
+### What v0.3 still doesn't solve (open for v0.4+)
+
+- **MIN_STAKE = 0.1 USDC** still too low for mainnet sybil deterrence. Held constant for v0.3 to keep the testnet network easy to seed.
+- **Validator equilibrium at low dispute rate** — validators still only earn during disputes.
+- **Per-market dispute bond configuration** — v0.3 bond is a contract constant. Future versions may let services specify their own bond rate.
+- **No on-chain dispute reputation** — ERC-8004 events still v0.4+.
+
 ### Added — Crucible v0.2 protocol layer
 
 - `contracts/src/v02/IResolverFeeReceiver.sol` — optional `notifyFee(bytes32 marketId) external payable` interface that lets resolvers receive a validator-reward fee from the market.
