@@ -1,0 +1,45 @@
+# Secrets
+.env
+.env.local
+.env.*.local
+**/.env
+
+# Node.js
+node_modules/
+.pnpm-store/
+*.log
+
+# Foundry
+contracts/out/
+contracts/cache/
+contracts/broadcast/
+contracts/.gas-snapshot
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# Build / dist
+dist/
+build/
+*.tsbuildinfo
+.next/
+out/
+.vercel/
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Private working files
+private/
+
+# Claude Code state
+.claude/
