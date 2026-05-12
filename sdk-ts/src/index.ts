@@ -31,3 +31,6 @@ export type { AgentClientOptions } from "./AgentClient.js";
 
 export { ValidatorClient } from "./ValidatorClient.js";
 export type { ValidatorClientOptions } from "./ValidatorClient.js";
+
+// v0.6 module (re-exported under namespaced names — see also `@crucible/sdk/v06`).
+export * as v06 from "./v06/index.js";
