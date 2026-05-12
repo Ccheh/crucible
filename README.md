@@ -5,8 +5,8 @@
 > The settlement layer existing payment protocols don't cover — payment conditional on *quality outcome*, not just delivery.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Arc Testnet](https://img.shields.io/badge/Arc%20Testnet-v0%20live-blue)](https://testnet.arcscan.app/address/0x61996d505d6510a339f39c9923519b2f5350f61c)
-[![Tests](https://img.shields.io/badge/tests-37%2F37%20passing-success)](#)
+[![Arc Testnet](https://img.shields.io/badge/Arc%20Testnet-v0.6%20live-blue)](https://testnet.arcscan.app/address/0x6535a3cbb4235746b732ab5d55c6b0988f381a20)
+[![Tests](https://img.shields.io/badge/tests-142%2F142%20passing-success)](#)
 [![Solidity](https://img.shields.io/badge/Solidity-0.8.28-blue)](contracts/foundry.toml)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue)](sdk-ts/tsconfig.json)
 
@@ -15,19 +15,48 @@
 ## At a glance
 
 ```
-3 contracts live on Arc Testnet
-37 passing tests (30 Solidity + 7 SDK)
-8+ verified on-chain txs (full lifecycle including service bond, agent open, validator stake + vote)
-TypeScript SDK shipped — ServiceClient + AgentClient + ValidatorClient
-MIT licensed, ~700 LOC of Solidity, no admin keys, no upgrade proxy
-Built on top of Cadence (Arc402) as base payment layer
+6 protocol versions shipped (v0 → v0.6), each frozen as deployable artifact
+142 passing forge tests across all versions
+v0.6 live on Arc Testnet:
+  - CrucibleMarketV6 + TestcaseResolverV5 deployed, gas ~4.4M (~0.088 USDC)
+  - Includes commit-reveal voting, validator subscription pool,
+    40% voting weight cap, ERC-8004 reputation events, per-market
+    dispute bond, stuck-market force-resolve fallback
+TypeScript SDK currently supports v0; v0.6 SDK sync is the next milestone
+MIT licensed, no admin keys, no upgrade proxy, ~2,600 LOC Solidity
+Built above Cadence (Arc402) base payment layer
 ```
+
+### v0.6 (current — latest) — Arc Testnet
 
 | Component | Address on Arc Testnet |
 |---|---|
-| **CrucibleMarket** | [`0x61996d505d6510a339f39c9923519b2f5350f61c`](https://testnet.arcscan.app/address/0x61996d505d6510a339f39c9923519b2f5350f61c) |
-| **TestcaseResolver** | [`0xa12874e9f77be35efb9e3aeb19eb547b9f224195`](https://testnet.arcscan.app/address/0xa12874e9f77be35efb9e3aeb19eb547b9f224195) |
-| **MockResolver** | [`0x76696e3c541eb32c81cfc1cbfb3e5e5ef1c4d35f`](https://testnet.arcscan.app/address/0x76696e3c541eb32c81cfc1cbfb3e5e5ef1c4d35f) |
+| **CrucibleMarketV6** | [`0x6535a3cbb4235746b732ab5d55c6b0988f381a20`](https://testnet.arcscan.app/address/0x6535a3cbb4235746b732ab5d55c6b0988f381a20) |
+| **TestcaseResolverV5** | [`0x51cc924fe83dc5221150f5752454a37121bE3957`](https://testnet.arcscan.app/address/0x51cc924fe83dc5221150f5752454a37121be3957) |
+
+Deployment txs:
+- Market: [`0x37c23d5b...`](https://testnet.arcscan.app/tx/0x37c23d5b6cc9005c776c2c3204d3dea5a43c5c7cd3e10cdd5c72d18e7d609918)
+- Resolver: [`0xaca5f288...`](https://testnet.arcscan.app/tx/0xaca5f28882a86df836456ab510125a6f114549d27152d6d5463fa9bd8a8e16d4)
+
+### v0 (initial release) — Arc Testnet, retained for historical record
+
+| Component | Address |
+|---|---|
+| CrucibleMarket | [`0x61996d505d6510a339f39c9923519b2f5350f61c`](https://testnet.arcscan.app/address/0x61996d505d6510a339f39c9923519b2f5350f61c) |
+| TestcaseResolver | [`0xa12874e9f77be35efb9e3aeb19eb547b9f224195`](https://testnet.arcscan.app/address/0xa12874e9f77be35efb9e3aeb19eb547b9f224195) |
+| MockResolver | [`0x76696e3c541eb32c81cfc1cbfb3e5e5ef1c4d35f`](https://testnet.arcscan.app/address/0x76696e3c541eb32c81cfc1cbfb3e5e5ef1c4d35f) |
+
+### Version timeline
+
+| Version | Headline addition | Tests |
+|---|---|---|
+| v0 | per-call market + pluggable resolver + optimistic settle | 30 |
+| v0.2 | slashing + reward fee pool + pendingVotes guard | +24 |
+| v0.3 | stake-weighted median + dispute bond | +22 |
+| v0.4 | MasterChef subscription pool + 40% voting cap + ERC-8004 events | +23 |
+| v0.5 | commit-reveal voting + per-market disputeBondBps + config MIN_STAKE | +32 |
+| v0.6 | force-resolve fallback for stuck disputed markets | +11 |
+| **total** | | **142** |
 
 ---
 
