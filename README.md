@@ -1,8 +1,6 @@
 # Crucible
 
-> **Prediction-market-settled payments for probabilistic AI services on Arc.**
->
-> The settlement layer existing payment protocols don't cover — payment conditional on *quality outcome*, not just delivery.
+> **Stake-weighted Schelling consensus on AI output quality, used as a payment-settlement primitive.** A research-grade protocol on Arc that asks: *what if AI service payments resolved on a market-derived quality score, not just delivery?*
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Arc Testnet](https://img.shields.io/badge/Arc%20Testnet-v0.6%20live-blue)](https://testnet.arcscan.app/address/0x6535a3cbb4235746b732ab5d55c6b0988f381a20)
@@ -10,21 +8,23 @@
 [![Solidity](https://img.shields.io/badge/Solidity-0.8.28-blue)](contracts/foundry.toml)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue)](sdk-ts/tsconfig.json)
 
+> **Read this first**: this is a **research-grade protocol with no production adopters yet**. The mechanism design is the contribution. Use it as a reference for thinking about quality-conditional settlement on programmable money; **don't deploy it under real value without an audit + real validator bootstrap.** Honest limits section is [below](#honest-limits).
+
 ---
 
 ## At a glance
 
 ```
 6 protocol versions shipped (v0 → v0.6), each frozen as deployable artifact
-142 passing forge tests across all versions
-v0.6 live on Arc Testnet:
-  - CrucibleMarketV6 + TestcaseResolverV5 deployed, gas ~4.4M (~0.088 USDC)
-  - Includes commit-reveal voting, validator subscription pool,
-    40% voting weight cap, ERC-8004 reputation events, per-market
-    dispute bond, stuck-market force-resolve fallback
-TypeScript SDK currently supports v0; v0.6 SDK sync is the next milestone
+142 forge tests + 7 SDK tests passing
+v0.6 live on Arc Testnet — deployed for ~0.088 USDC of gas
+TypeScript SDK supports both v0 (initial release) and v0.6 (latest)
 MIT licensed, no admin keys, no upgrade proxy, ~2,600 LOC Solidity
 Built above Cadence (Arc402) base payment layer
+
+What this is:    research-grade reference implementation
+What this isn't: production payment rail (yet) — no third-party adopters,
+                 pre-audit, validator network not bootstrapped
 ```
 
 ### v0.6 (current — latest) — Arc Testnet
@@ -60,17 +60,11 @@ Deployment txs:
 
 ---
 
-## The structural problem we solve
+## The thesis
 
-Every existing AI-payment protocol — Stripe, Lightning, Coinbase x402, Circle Nanopayments, even our predecessor Cadence — treats AI service calls as **deterministic transactions**: pay X, receive Y, done. But AI is **probabilistic**:
+Today's payment rails (Stripe, Lightning, x402, Circle Nanopayments, Cadence) treat AI calls as **deterministic transactions** — pay X, receive Y, done. But AI is probabilistic: outputs are stochastic, quality is subjective. Existing rails settle on **delivery confirmation**, not **outcome quality**.
 
-- Outputs are stochastic (the LLM gives different answers on different runs)
-- Quality is subjective (good translation vs. bad translation isn't a hash check)
-- Value resolves over time (was the prediction useful? was the code merged?)
-
-None of the existing protocols handle this. They settle on **delivery confirmation**, not **outcome quality**.
-
-**Crucible adds the missing layer**: payment held in escrow, output evaluated by a per-call prediction market, funds released proportional to outcome. Service stakes a bond against quality; validators stake to vote on outcomes; agents get refunds when delivery fails the quality bar.
+**Crucible explores what a quality-conditional settlement primitive looks like**: payment held in escrow, output evaluated by a stake-weighted validator consensus, funds released proportional to a 0–10000 quality score.
 
 | Protocol | Quality awareness | Resolution mechanism |
 |---|---|---|
@@ -78,10 +72,17 @@ None of the existing protocols handle this. They settle on **delivery confirmati
 | Lightning | None | None |
 | Coinbase x402 | None | 200 OK = paid |
 | Circle Nanopayments | None | Same as x402 |
-| Cadence (Arc402) | None in core; rep-tier as discount only | None |
-| **Crucible** | **Per-call market-resolved score** | **Pluggable resolvers + validator stakes + optimistic dispute** |
+| Cadence (Arc402) | None | None |
+| **Crucible** | **Market-resolved score per call** | **Pluggable resolvers + stake-weighted validator consensus + optimistic dispute** |
 
-No payment protocol has ever made AI output quality a first-class settlement primitive. Crucible is the first.
+### Why "prediction market" is the right reference (and where the framing is loose)
+
+The mechanism is **closer to UMA's optimistic oracle / Augur's stake-weighted Schelling consensus** than to Polymarket-style order-book markets:
+
+- ✅ **Like prediction markets**: subjective claims are resolved by economic stake-weighted voting; honest validators are rewarded, dissenters slashed proportional to distance from consensus.
+- ❌ **Unlike prediction markets**: there is **no order book, no continuous price discovery, no liquidity provider**. The "market" is a one-shot voting round with a 30-min commit + 30-min reveal window.
+
+So "prediction-market-settled" is a marketing handle. The technically precise label is **stake-weighted Schelling consensus on output quality, with proportional-distance slashing**. The README uses the looser phrase because it lands faster; the contracts implement the precise mechanism.
 
 ---
 
@@ -156,17 +157,16 @@ Not unit-test-only. Real EVM execution, verifiable on https://testnet.arcscan.ap
 
 ---
 
-## Roles
+## Roles (defined in the protocol; no active network yet)
 
 | Role | What they do | Skin in the game | Reward |
 |---|---|---|---|
-| **Agent** | Pays for AI service, optionally disputes | USDC in escrow | Refund if service fails quality |
-| **Service** | Provides AI output, commits to quality claim | Quality bond | Payment if claim verified |
-| **Validator** | Stakes USDC, votes on output quality | Validator stake | Share of market fee (v0.2) |
-| **Resolver** | Pluggable verification logic (contract) | None (pure code) | None |
-| **Disputer** | Anyone can challenge resolution | Dispute bond (v0.2) | Wins disputed funds |
+| **Agent** | Pays for AI service, optionally disputes (with bond from v0.3+) | USDC in escrow + dispute bond | Refund proportional to (10000-score) |
+| **Service** | Provides AI output, commits to quality claim | Bond posted to bondPool, locked per market | Payment proportional to score |
+| **Validator** | Stakes USDC, commits + reveals a vote per disputed market (v0.5+) | Validator stake (>= MIN_STAKE) | Subscription yield (v0.4+) + dispute reward share |
+| **Resolver** | Pluggable on-chain verification logic | None (pure code) | None directly; receives fees + subscriptions for distribution |
 
-Anyone can be any role. No permissioning. No KYC. No central operator.
+The protocol is permissionless by design — no KYC, no central operator, no admin keys. **The active set is empty today**: no third-party services use Crucible for real traffic, and the validator network is the smart contract waiting for stakers. This is infrastructure waiting for adopters.
 
 ## Resolver types (pluggable verification)
 
@@ -218,21 +218,35 @@ A Crucible-protected service can:
 - Add Crucible quality-outcome layer on top
 - Settle through Cadence's batch path or directly via Crucible
 
-## v0 scope (shipped today, 2026-05-12)
+## Honest limits
 
-✅ **Contracts on Arc Testnet**: `CrucibleMarket`, `TestcaseResolver`, `MockResolver`, `IResolver` interface
-✅ **TypeScript SDK**: `@crucible/sdk` with `ServiceClient`, `AgentClient`, `ValidatorClient`
-✅ **Spec v0**: 15 sections, formal protocol design in [docs/spec-v0.md](docs/spec-v0.md)
-✅ **End-to-end demo**: real LLM-style service with full on-chain settlement
-✅ **30 contract tests + 7 SDK tests**
+The mechanism design and engineering are real. The market validation is not. Specifically:
 
-⏳ **Next**:
-- `ValidatorVault` economics (slashing + reward fee pool)
-- Real LLM integration (currently mocked in demo)
-- Independent audit
-- Mainnet deploy
+- **No production adopters.** Every on-chain transaction was generated by our own scripts. No third-party AI service uses Crucible. The "validator network" today is **the smart contracts, not an active set of staked validators** — we deployed the infrastructure but it has not bootstrapped a real network.
+- **Pre-audit.** 142 forge tests pass, but no independent security audit. Treat as testnet-only research code.
+- **The killer demo (real LLM end-to-end) is in progress** — see [`sdk-ts/examples/`](sdk-ts/examples/). The deterministic mock LLM is shipped; the real-API integration is the next milestone, not a current claim.
+- **ERC-8004 reputation events are emitted but not yet read** by any indexer. The schema is designed for forward compatibility when ERC-8004 indexers emerge; today they are just structured log events.
+- **Arc-specificity is loose.** Crucible could run on any EVM chain. We chose Arc because (a) USDC native gas keeps sub-cent settlement clean, and (b) Arc is Circle's agentic-economy bet. There is no technical mechanism that requires Arc specifically.
+- **Schelling consensus has a known >50%-stake-attack ceiling.** The 40% voting weight cap mitigates the 40–70% range; >70% stake by a single coordinated party cannot be mitigated by any one-shot mechanism. This is a property of the design, not a bug.
+- **Validator economics require dispute volume to bootstrap.** Subscription pool (v0.4) gives validators baseline yield from all settlements, but the absolute amounts at testnet scale are negligible. Real economics need mainnet traffic.
 
-❌ **NOT in v0**: slashing, reward fee pool, ZK-ML resolver, TEE resolver, mainnet, audit.
+If you're considering integrating, treat this as **research infrastructure on a probabilistic-AI-payment thesis Circle is also pursuing**, not as production-ready rails.
+
+## v0 scope (shipped, 2026-05-12)
+
+✅ **Contracts on Arc Testnet** (six versions, v0 → v0.6): `CrucibleMarket*`, `TestcaseResolver*`, `MockResolver`, `IResolver` interface, `IResolverFeeReceiver` interface, `IResolverSubscriptionReceiver` interface
+✅ **TypeScript SDK**: `@crucible/sdk` with v0 clients + new `v06` module (ServiceClientV6, AgentClientV6, ValidatorClientV6)
+✅ **Spec v0**: 15 sections + v0.2–v0.6 addenda in [docs/spec-v0.md](docs/spec-v0.md)
+✅ **End-to-end optimistic-path demo on Arc Testnet** (real txs) — see [`sdk-ts/examples/v06-optimistic.ts`](sdk-ts/examples/v06-optimistic.ts)
+✅ **142 forge tests + 7 SDK tests passing**
+
+⏳ **Open items** (we are deliberately stopping protocol work to focus here):
+- Real LLM integration in a demo (no more API stubs)
+- Real-chain dispute-path lifecycle evidence (commit + reveal + resolveDisputed txs in README)
+- Independent audit (M2 of original roadmap)
+- Mainnet deploy with raised MIN_STAKE
+
+❌ **NOT in any current version**: ZK-ML resolver, TEE resolver, mainnet, audit, third-party integrators.
 
 ## Repository layout
 
@@ -251,4 +265,4 @@ A Crucible-protected service can:
 
 [Zen Chen](https://github.com/Ccheh) — Strategy Researcher @ Polymarket. MSc Data Science (Sheffield).
 
-Polymarket-style market design is the underlying mechanism for Crucible's quality resolution. This is the "Polymarket consensus, applied to AI service quality" protocol.
+Crucible's resolution mechanism is closest in spirit to **UMA's optimistic-oracle stake-weighted Schelling consensus**, applied to AI service quality at per-call granularity. The "prediction market" framing in the lead is a marketing handle; the precise label is documented in [The thesis](#the-thesis) section.
