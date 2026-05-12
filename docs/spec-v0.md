@@ -371,3 +371,90 @@ To move from spec to implementation, the following must be decided:
 ---
 
 *This spec is intentionally a first draft. Every section is debatable. Iterate before shipping.*
+
+---
+
+# Crucible Protocol — v0.2 Addendum
+
+> **Date**: 2026-05-12
+> **Status**: Designed and implemented (54/54 tests passing, not yet deployed).
+> **Scope**: Hardens v0's validator economics. Does NOT redesign the core mechanism — the v0 conceptual layer is unchanged.
+
+## What v0.2 adds
+
+Three concrete additions:
+
+1. **Validator slashing** (`TestcaseResolverV2`). Validators whose vote diverges from the stake-weighted consensus by more than `TOLERANCE_BPS = 1500` (15 percentage points) lose stake proportional to the excess distance, capped at `MAX_SLASH_BPS = 1000` (10% of their stake) per market resolution. This is the v0.2 fix to V4 (validator collusion) in the security analysis.
+
+2. **Validator reward fee pool**. `CrucibleMarketV2` siphons `RESOLVER_FEE_BPS = 200` (2%) of the agent escrow on the disputed-resolution path and forwards it via `notifyFee(marketId)` to the resolver. The resolver pools per-market fees and distributes them pro-rata to honest validators (within tolerance) along with the redistributed-slashed stake. Validators withdraw via `claimRewards()`.
+
+3. **Pending-vote-aware unstake**. Validators cannot `completeUnstake` until every market they voted on has resolved. This fixes the flash-vote-and-exit attack class (V11 in security analysis).
+
+## Math
+
+Resolution flow (3-pass in a single tx):
+
+```
+Pass 1: finalScoreBps = stake-weighted mean of votes
+Pass 2: for each voter v with distance d = |vote_v - finalScoreBps|:
+          if d <= TOLERANCE_BPS:    honestStake += stake_v
+          else:                      slashAmt = stake_v * min((d - TOLERANCE_BPS)*MAX_SLASH_BPS / 8500, MAX_SLASH_BPS) / 10000
+                                     validatorStake[v] -= slashAmt
+                                     totalSlashed += slashAmt
+Pass 3: rewardPool = feePool + totalSlashed
+        for each honest voter v:    pendingReward[v] += rewardPool * stake_v / honestStake
+```
+
+Settlement math (CrucibleMarketV2):
+
+```
+on dispute path:
+  resolverFee     = agentEscrow * RESOLVER_FEE_BPS / 10000
+  if resolver accepts notifyFee:
+    settleEscrow  = agentEscrow - resolverFee
+  else (fallback):
+    settleEscrow  = agentEscrow            # fee stays in escrow, split per score
+  paidToService   = settleEscrow * scoreBps / 10000
+  refundToAgent   = settleEscrow - paidToService
+  bondSlash       = bondLocked * (10000 - scoreBps) / 10000
+  totalToAgent    = refundToAgent + bondSlash
+
+on optimistic path (collectAfterWindow):
+  no resolver fee; service collects full escrow.
+```
+
+## Cross-version isolation
+
+`CrucibleMarketV2` ships with EIP-712 domain `"Crucible" version "2"`. v0 signatures cannot cross-replay against v0.2, and vice versa — domain separators differ by the version field.
+
+## What v0.2 does NOT solve (still open for v0.3+)
+
+- **Median consensus**. v0.2 still uses stake-weighted mean; a single large validator can still drag resolution. Median voting requires sorting and is planned for v0.3.
+- **Sybil dispute spam**. Disputes are still free in v0.2 (only gas). A dispute bond is the v0.3 fix.
+- **Mainnet-ready**. Pre-audit. Audit + median voting are the prerequisites.
+- **Validator equilibrium at low dispute rate**. Validators only earn during disputes. A healthy market with rare disputes could starve validators of rewards. Solution: future versions might add a small per-market keep-alive fee, or rely on validators having other reasons to stake (their own service reputation, cross-market voting).
+
+## Why this design
+
+The v0.2 changes were chosen because they:
+
+1. Directly address the top three known limitations from `docs/security-considerations.md` (V4 collusion, V11 flash-exit, validator-economics-missing).
+2. Add NO new admin surface — all parameters are contract constants. To change them, deploy v0.3.
+3. Stay backward-compatible at the IResolver interface level. v0 resolvers still work with v0 markets; v0.2 resolvers also work with v0 markets (notifyFee just goes unused).
+4. Fee is only charged on the disputed path — well-behaved services pay no premium. Bad services pay the cost of arbitration, as designed.
+
+## Implementation footprint
+
+```
+contracts/src/v02/
+├── IResolverFeeReceiver.sol      ~15 LOC  (optional resolver extension)
+├── CrucibleMarketV2.sol          ~245 LOC (fee routing + EIP-712 v2)
+└── TestcaseResolverV2.sol        ~280 LOC (slashing + rewards + pendingVotes)
+
+contracts/test/
+├── CrucibleMarketV2.t.sol         8 tests passing
+└── TestcaseResolverV2.t.sol      16 tests passing
+```
+
+Combined v0 + v0.2: **54/54 tests passing**, all forge-verifiable via `forge test`.
+

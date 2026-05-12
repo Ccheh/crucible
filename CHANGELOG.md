@@ -8,6 +8,28 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased] — 2026-05-12
 
+### Added — Crucible v0.2 protocol layer
+
+- `contracts/src/v02/IResolverFeeReceiver.sol` — optional `notifyFee(bytes32 marketId) external payable` interface that lets resolvers receive a validator-reward fee from the market.
+- `contracts/src/v02/CrucibleMarketV2.sol` — v0.2 market with:
+  - **EIP-712 domain version `"2"`** for cross-version replay isolation
+  - **`RESOLVER_FEE_BPS = 200`** (2%) of agent escrow routed to the resolver via `notifyFee` on the disputed-resolution path (push BEFORE `resolve()`, so the resolver can in-line the fee in its reward distribution)
+  - Graceful fallback when the resolver does NOT implement `notifyFee` (try/catch keeps the fee in the escrow and splits it normally)
+  - No resolver fee on the optimistic / `collectAfterWindow` path — well-behaved services pay no premium
+- `contracts/src/v02/TestcaseResolverV2.sol` — v0.2 validator network resolver with:
+  - **Slashing**: `TOLERANCE_BPS = 1500` (15pp), `MAX_SLASH_BPS = 1000` (10% cap). Validators whose vote diverges beyond tolerance from stake-weighted consensus lose stake proportional to excess distance.
+  - **Reward fee pool**: accepts deposits via `notifyFee(marketId)`; distributes (`feePool + totalSlashed`) pro-rata to honest validators inside `resolve()`.
+  - **Pending-vote-aware unstake**: `completeUnstake` reverts with `PendingVotes(count)` until all of the validator's voted-on markets have resolved. Closes the flash-vote-and-exit attack class.
+  - Three-pass resolution (mean → slash → distribute) in a single transaction.
+  - `claimRewards()` push-style withdrawal for validators.
+
+### Added — v0.2 tests
+
+- 8 `CrucibleMarketV2Test`: optimistic-path (no fee), disputed-fee-routed (resolver gets fee, validators earn), disputed-fee-bounces (mock resolver, fee stays in escrow), score-max / score-zero edge cases, EIP-712 v2 domain check, openMarket happy path + resolver-whitelist revert.
+- 16 `TestcaseResolverV2Test`: slashing math at multiple distances, no-slash within tolerance, reward distribution to honest validators, slashed-stake redistribution, fee-pool intake, pendingVotes blocking unstake, claimRewards flow, post-resolve notifyFee revert.
+
+Combined: **54 forge tests passing across v0 + v0.2** (added `via_ir = true` to `foundry.toml` to handle TestcaseResolverV2 stack depth).
+
 ### Added — TypeScript SDK (`@crucible/sdk`)
 
 - `ServiceClient` — `depositBond`, `withdrawBond`, `setResolverAllowed`, `signOpenAuth` (EIP-712), `bondPool`, `bondLocked`, `bondAvailable`
