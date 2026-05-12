@@ -657,3 +657,95 @@ contracts/test/
 
 Combined v0 + v0.2 + v0.3 + v0.4: **99/99 tests passing**.
 
+---
+
+# Crucible Protocol — v0.5 Addendum
+
+> **Date**: 2026-05-12
+> **Status**: Designed and implemented (131/131 tests passing across all versions, not yet deployed).
+> **Scope**: Three changes that close the three remaining "open for v0.5+" items from the v0.4 audit. The protocol is now substantially feature-complete for the test/audit cycle.
+
+## What v0.5 adds
+
+### 1. Commit-reveal voting
+
+The single biggest anti-collusion upgrade. Replaces v0.4's `vote(marketId, score)` with two-phase:
+
+```
+Commit phase  (first 30 min):
+  voteHash = keccak256(abi.encode(score, salt, marketId, voter))
+  commitVote(marketId, voteHash)
+
+Reveal phase  (next 30 min):
+  revealVote(marketId, score, salt)
+  → verifies hash matches → records vote
+```
+
+The hash leaks no information about `score` (256-bit salt prevents brute force). Validators must commit their own honest estimate; the commit phase ends before anyone learns what anyone else voted. Eliminates the v0.4 risk of validators copying each others' votes at the last second.
+
+A validator who commits but doesn't reveal is **not** counted in resolution AND is **not** locked by pendingVotes — clean opt-out semantics.
+
+### 2. Configurable MIN_STAKE
+
+```solidity
+constructor(uint256 _minStake) {
+    require(_minStake > 0, "minStake must be > 0");
+    MIN_STAKE = _minStake;
+}
+```
+
+Mainnet deployments can pick 1+ USDC for real sybil deterrence. Testnet keeps 0.1 USDC for easy bootstrap. `immutable` so the contract doesn't grow an admin surface.
+
+### 3. Per-market dispute bond
+
+```solidity
+struct OpenAuth {
+    ...
+    uint16 disputeBondBps;   // NEW in v0.5
+    ...
+}
+```
+
+Services pick their own dispute friction at OpenAuth sign time. Bounds: `[100 bps (1%), 5000 bps (50%)]`. A free testnet API can use 100 bps; a high-value LLM gateway can use 2000 bps. Agents who don't like the chosen friction simply don't open the market — service-side decision.
+
+EIP-712 typehash changes (struct shape changed), so domain version bumps to `"5"` — sigs cannot cross-replay against v0.4 or earlier.
+
+## Settlement math (unchanged from v0.4, parametrized by per-market bondBps)
+
+```
+disputeBond    = agentEscrow * market.disputeBondBps / 10000  (v0.5: per-market)
+subscription   = agentEscrow * VALIDATOR_SUBSCRIPTION_BPS / 10000  (10 bps every settle)
+resolverFee    = agentEscrow * RESOLVER_FEE_BPS / 10000             (200 bps on dispute)
+settleEscrow   = agentEscrow - subscription (if accepted) - resolverFee (if dispute and accepted)
+paidToService  = settleEscrow * scoreBps / 10000
+refundEscrow   = settleEscrow - paidToService
+bondSlash      = bondLocked  * (10000 - scoreBps) / 10000
+bondToService  = disputeBond * scoreBps / 10000
+bondRefund     = disputeBond - bondToService
+```
+
+## Implementation footprint
+
+```
+contracts/src/v05/
+├── CrucibleMarketV5.sol           ~290 LOC (per-market bondBps + EIP-712 v5)
+└── TestcaseResolverV5.sol         ~370 LOC (commit-reveal + config MIN_STAKE)
+
+contracts/test/
+├── CrucibleMarketV5.t.sol          11 tests passing
+└── TestcaseResolverV5.t.sol        21 tests passing
+```
+
+Combined v0 + v0.2 + v0.3 + v0.4 + v0.5: **131/131 tests passing**.
+
+## What v0.5 still doesn't solve
+
+The leftover list has shrunk considerably:
+
+1. **Stuck disputed markets** — if everyone commits but no one reveals, the market is stuck in Disputed status with no resolution path. v0.6 needs a force-resolve-default function that the agent or service can call after a grace period. Trivial to add.
+2. **>70% stake attacker** — still mechanically impossible on a single market. Validator network stake distribution is the policy-level fix.
+3. **Validator yield smoothing** — subscription distribution is event-driven (per fee deposit). Smoother yield would need block-time accrual; not on the critical path.
+4. **Cross-resolver reputation aggregation** — `ValidatorReputation` events are per-resolver; an off-chain ERC-8004 indexer can aggregate. On-chain aggregation across resolvers is v0.7+.
+
+None of these block testnet deployment or audit-prep. v0.6 = stuck-market fallback (10-line fix). v0.7 = bigger work.
+

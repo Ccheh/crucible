@@ -8,6 +8,50 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased] — 2026-05-12
 
+### Added — Crucible v0.5 protocol layer
+
+The v0.5 release closes the three remaining items I marked "open for v0.5+" in the v0.4 audit notes (the per-market bond config, the commit-reveal voting, and the configurable MIN_STAKE for mainnet).
+
+- `contracts/src/v05/TestcaseResolverV5.sol` — adds:
+  - **Commit-reveal voting**. Replaces the single-shot `vote()` of v0.4 with a two-phase flow: `commitVote(marketId, voteHash)` during a 30-min commit window, then `revealVote(marketId, score, salt)` during a 30-min reveal window. Hash is `keccak256(abi.encode(score, salt, marketId, voter))` — includes voter and marketId so it can't be replayed across markets or by other addresses. A validator who only commits but never reveals is NOT counted in resolution and is NOT locked by pendingVotes.
+  - **Configurable MIN_STAKE**. Constructor takes `_minStake` (uint256, must be > 0). Mainnet deployments can deploy with 1+ USDC; testnet keeps 0.1 USDC. The `MIN_STAKE` is `immutable` so it can't change post-deploy.
+  - `computeVoteHash(scoreBps, salt, marketId, voter)` view helper for off-chain commit construction.
+  - State machine: None → CommitOpen (first commit) → RevealOpen (`> commitDeadline`) → Resolvable (`> revealDeadline`).
+  - All v0.4 mechanics preserved: subscription pool with MasterChef accumulator, 40% voting weight cap, ERC-8004 reputation events, slashing on distance-from-median, pendingVotes guard, fee + reward distribution.
+- `contracts/src/v05/CrucibleMarketV5.sol` — adds:
+  - **Per-market `disputeBondBps`** field in `OpenAuth`. Services pick their own dispute friction at sign time. Validated at `openMarket` against `[MIN_DISPUTE_BOND_BPS=100, MAX_DISPUTE_BOND_BPS=5000]` (1% to 50%). `dispute()` requires exactly `(agentEscrow * bondBps) / 10000`.
+  - `requiredDisputeBond(marketId)` now uses the market's own bondBps.
+  - **EIP-712 typehash changed** to include `disputeBondBps` — bumps domain version to `"5"`. v0/v0.2/v0.3/v0.4 sigs cannot cross-replay against v0.5.
+  - All v0.4 mechanics preserved: validator subscription routing on every settlement, ServiceReputation events, optimistic + disputed path math, resolver fee routing on dispute.
+
+### Added — v0.5 tests (32 new, 131 total across all versions)
+
+- 21 `TestcaseResolverV5Test`: constructor validation (zero minStake reverts, alternate minStake works), commit-reveal edge cases (double commit, late commit, early reveal, late reveal, wrong score, wrong salt, no commit, double reveal), full lifecycle median, unrevealed commits do not count, anti-copy-attack demo, vote hash domain isolation, pendingVotes only on reveal, voting cap + subscription accumulator carry over.
+- 11 `CrucibleMarketV5Test`: EIP-712 v5 domain, bond bps below/above range reverts, bond bps at min/max boundaries, different markets have different bonds, dispute uses per-market bond, tampered bond signature fails, subscription paid on optimistic path, ServiceReputation event emission, openMarket happy path with v5 struct shape.
+
+Combined: **131 forge tests passing across v0 + v0.2 + v0.3 + v0.4 + v0.5**.
+
+### Anti-collusion property gained
+
+In v0.4 a validator could watch other validators' votes (since they were public on `vote()`) and free-ride by submitting an identical vote at the last second. That's mechanically free with no penalty — perfect for laundering bad votes.
+
+In v0.5 the commit phase is a sealed-envelope phase. The hash `keccak256(score, salt, marketId, voter)` leaks no information about the score (the salt is 256 random bits). Validators must commit their own honest estimate; only after the commit window closes does anyone know what anyone else voted.
+
+### Economic flexibility gained
+
+Services can now match dispute friction to their value-at-stake:
+- A free testnet sandbox can set `disputeBondBps = 100` (1%) — disputes are cheap, low-stakes UX.
+- A high-value AI service ($0.10/call) can set `disputeBondBps = 2000` (20%) — disputes have real economic friction.
+
+The signature requirement means agents must accept the service's chosen bondBps; an agent who doesn't like the friction simply doesn't open the market. This is the right side-of-the-table for the decision: services know their own quality assurance better than the protocol does.
+
+### What v0.5 still doesn't solve (small leftover list for v0.6+)
+
+- **Stuck disputed markets** — if everyone commits but no one reveals, the market is stuck in Disputed status with no resolution. v0.6 should add a force-resolve-default fallback after a grace period.
+- **>70% stake attacker** — still mechanically impossible to mitigate on a single market. Validator network stake distribution is the only fix at this level.
+- **Validator yield smoothing** — subscription distribution is event-driven (per fee deposit). Smoother yield would need block-time accrual; not on the critical path.
+- **Cross-resolver reputation** — a validator's reputation is tracked per-resolver via events; an off-chain ERC-8004 indexer can aggregate. On-chain aggregation across resolvers is v0.7+ work.
+
 ### Added — Crucible v0.4 protocol layer
 
 The v0.4 release directly attacks the three biggest items I marked "still open" in the v0.3 audit notes:
