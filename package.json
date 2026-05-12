@@ -1,0 +1,29 @@
+{
+  "name": "crucible",
+  "version": "1.0.0",
+  "description": "> **Prediction-market-settled payments for probabilistic AI services on Arc.** > > The settlement layer existing payment protocols don't cover — payment conditional on *quality outcome*, not just delivery.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "example": "examples"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ccheh/crucible.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/Ccheh/crucible/issues"
+  },
+  "homepage": "https://github.com/Ccheh/crucible#readme",
+  "dependencies": {
+    "tsx": "^4.21.0",
+    "viem": "^2.48.11"
+  }
+}

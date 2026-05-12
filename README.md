@@ -131,6 +131,28 @@ A Crucible-protected service can:
 
 **30 tests passing** (13 CrucibleMarket + 17 TestcaseResolver). See [docs/spec-v0.md](docs/spec-v0.md) for design.
 
+### Live on-chain end-to-end verification (Arc Testnet, 2026-05-12)
+
+Full protocol lifecycle exercised on the live deployed contracts. Every step is a real on-chain transaction:
+
+**Phase 1 — CrucibleMarket optimistic settlement** (service stakes bond, agent opens market with EIP-712 service authorization, 60-second dispute window, automatic resolution at score=10000):
+
+| Step | tx |
+|---|---|
+| service deposits 0.5 USDC bond | [`0xbed641ed...`](https://testnet.arcscan.app/tx/0xbed641eddba245aac3ccfc337bf743ab9a4cea071f33176d4ed0f8c0d4968599) |
+| service whitelists MockResolver | [`0xa0de7856...`](https://testnet.arcscan.app/tx/0xa0de7856551a756ff836d52220e26add8eb9eddc6156ee8ffc7646631324593c) |
+| agent opens market with 0.01 USDC + EIP-712 auth | [`0x616c8d57...`](https://testnet.arcscan.app/tx/0x616c8d5712d4a6b8c1ea7b30672a0afc1c1c534b30a805c1110cb65f2523660a) |
+| collect after 60s window → market resolves at score 10000 | market `0xaf28e414...` status `3` (Resolved), payments distributed ✅ |
+
+**Phase 2 — TestcaseResolver validator network** (validator stakes, casts a vote on a synthetic market; voting deadline auto-opens 1h from first vote):
+
+| Step | tx |
+|---|---|
+| main wallet stakes 0.2 USDC into TestcaseResolver | [`0x0117371c...`](https://testnet.arcscan.app/tx/0x0117371ce85a31b6dfa18a21d8f0805845fa5fe636fef3055749f9c6cfe1fe14) |
+| validator votes scoreBps=7500 on synthetic market | [`0x65c71cc1...`](https://testnet.arcscan.app/tx/0x65c71cc1098655f1537d1658da05ccd6b7df985c22f51ff3c97f3be843ee3ea4) |
+
+**This is not unit-test-only.** Every flow above is real EVM execution on Arc Testnet, verifiable on-chain.
+
 ## License
 
 [MIT](LICENSE)
