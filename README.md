@@ -8,7 +8,7 @@
 [![Solidity](https://img.shields.io/badge/Solidity-0.8.28-blue)](contracts/foundry.toml)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue)](sdk-ts/tsconfig.json)
 
-> **Read this first**: this is a **research-grade protocol with no production adopters yet**. The mechanism design is the contribution. Use it as a reference for thinking about quality-conditional settlement on programmable money; **don't deploy it under real value without an audit + real validator bootstrap.** Honest limits section is [below](#honest-limits).
+> **Read this first**: this is a **research-grade protocol with no production adopters yet**. The mechanism design is the contribution. Use it as a reference for thinking about quality-conditional settlement on programmable money; **don't deploy it under real value without an audit + real validator bootstrap.** Honest limits section is [below](#honest-limits). Self-run [Slither static analysis](audits/slither-report.md) reports no high or medium severity findings.
 
 ---
 
@@ -21,6 +21,10 @@ v0.6 live on Arc Testnet — deployed for ~0.088 USDC of gas
 TypeScript SDK supports both v0 (initial release) and v0.6 (latest)
 MIT licensed, no admin keys, no upgrade proxy, ~2,600 LOC Solidity
 Built above Cadence (Arc402) base payment layer
+Composes upward via a CrucibleMetricOracle adapter that exposes a
+  resolved market's scoreBps as an IMetricOracle for Helm
+  (deployed at 0x8d7efaacbf2e944e459801f891577b40fa6124c4 on Arc Testnet,
+   maintained in the Helm repo: github.com/Ccheh/helm)
 
 What this is:    research-grade reference implementation
 What this isn't: production payment rail (yet) — no third-party adopters,

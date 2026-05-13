@@ -41,5 +41,8 @@ Thumbs.db
 # Private working files
 private/
 
-# Claude Code state
+docs/prompts/
+docs/strategy-*.md
+
+# Local editor / agent session state
 .claude/
