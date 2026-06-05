@@ -6,6 +6,50 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [0.7.0] — 2026-06-05 — Graded-resolution layer (repositioning)
+
+Repositions Crucible from "prediction-market-settled AI service quality" into a
+general, USDC-bonded, **graded** resolution layer for Arc — the layer Circle's
+Blueprints punt to builders and that the failing UMA token-vote model cannot fix.
+See `docs/repositioning-v0.7.md` and `docs/grant-application-v0.7.md`.
+
+**Deployed to Arc Testnet (chain 5042002):**
+- `CrucibleMarketV7`           — `0x9934bAF33bcF0dfD14040f8ddd5DdF18eCfEFb59`  (tx `0x6ba571a3…ead983`)
+- `ScalarResolverV7`           — `0x85b332122371f3c08253844B6170e8daC0c8c2fB`  (tx `0xd8113bc8…1c7720`)
+- `Erc8183ProportionalAdapter` — `0x44A0a6DEFE24F8CA84a3E5390Ab3f656Db306CaB`  (tx `0xc92706c4…116cec`)
+
+### Added
+- `src/v07/ScalarResolverV7.sol` — generalized stake-weighted commit-reveal
+  Schelling resolver with **staker-participant decoupling**: a market's service
+  and agent (registered by the bound market via `onDispute`) are barred from
+  voting on it. Admin-keyless: `AUTHORIZED_MARKET` is immutable. Continuous
+  score `[0,10000]`. Carries over all v0.5 mechanics (median, 40% cap, slashing,
+  subscription pool, ERC-8004 events, 7-day cooldown).
+- `src/v07/CrucibleMarketV7.sol` — adds a **separate `criteriaHash`**
+  (pre-committed, machine-checkable resolution rubric, distinct from the
+  deliverable commitment) and a **typed `DisputeKind`** (Objective |
+  Intersubjective) declared on dispute. `dispute()` fires `onDispute` on the
+  resolver (opens voting + registers conflicts, atomic). EIP-712 domain → `"7"`;
+  `OpenAuth` typehash gains `criteriaHash` (no cross-version replay vs v0.6).
+- `src/v07/Erc8183ProportionalAdapter.sol` — standard-agnostic adapter that
+  upgrades ERC-8183's **binary** accept/reject into a **continuous proportional**
+  split driven by a Crucible resolved score (10000==complete, 0==reject).
+
+### Security
+- **Found & fixed a window-denial bypass of decoupling.** Because
+  `marketId = keccak(service,agent,nonce)` is known in advance and the resolver
+  originally bootstrapped its commit window on the first commit, a participant
+  could pre-commit to its own market to exhaust the commit clock before the
+  dispute (and conflict registration) landed, then let the market go stale and
+  `forceResolveStale` in its own favor. Fixed by opening the window only via the
+  market's `onDispute` at dispute time; pre-dispute commits revert `VotingNotOpen`.
+
+### Tests
+- +30 tests (3 new suites + fuzz invariants on proportional-split conservation):
+  **172 forge tests passing** across v0 + v0.2 + … + v0.7.
+
+---
+
 ## [Unreleased] — 2026-05-12
 
 ### Added — Crucible v0.6 protocol layer

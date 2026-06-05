@@ -1,10 +1,10 @@
 # Crucible
 
-> **Stake-weighted Schelling consensus on AI output quality, used as a payment-settlement primitive.** A research-grade protocol on Arc that asks: *what if AI service payments resolved on a market-derived quality score, not just delivery?*
+> **The graded-resolution layer for Arc** — a USDC-bonded, staker-participant-decoupled Schelling resolver that turns any intersubjective outcome into a *continuous* score and splits escrow proportionally. The verdict layer Circle's Blueprints punt to builders, and that UMA's token-vote model structurally cannot fix. *(v0.7 repositioning — see [`docs/repositioning-v0.7.md`](docs/repositioning-v0.7.md). Originally framed as "Schelling consensus on AI output quality used as a payment-settlement primitive.")*
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Arc Testnet](https://img.shields.io/badge/Arc%20Testnet-v0.6%20live-blue)](https://testnet.arcscan.app/address/0x6535a3cbb4235746b732ab5d55c6b0988f381a20)
-[![Tests](https://img.shields.io/badge/tests-142%2F142%20passing-success)](#)
+[![Arc Testnet](https://img.shields.io/badge/Arc%20Testnet-v0.7%20live-blue)](https://testnet.arcscan.app/address/0x9934bAF33bcF0dfD14040f8ddd5DdF18eCfEFb59)
+[![Tests](https://img.shields.io/badge/tests-172%2F172%20passing-success)](#)
 [![Solidity](https://img.shields.io/badge/Solidity-0.8.28-blue)](contracts/foundry.toml)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue)](sdk-ts/tsconfig.json)
 
@@ -31,7 +31,19 @@ What this isn't: production payment rail (yet) — no third-party adopters,
                  pre-audit, validator network not bootstrapped
 ```
 
-### v0.6 (current — latest) — Arc Testnet
+### v0.7 (current — latest) — Arc Testnet — graded-resolution layer
+
+| Component | Address on Arc Testnet |
+|---|---|
+| **CrucibleMarketV7** | [`0x9934bAF33bcF0dfD14040f8ddd5DdF18eCfEFb59`](https://testnet.arcscan.app/address/0x9934bAF33bcF0dfD14040f8ddd5DdF18eCfEFb59) |
+| **ScalarResolverV7** *(staker-participant decoupled)* | [`0x85b332122371f3c08253844B6170e8daC0c8c2fB`](https://testnet.arcscan.app/address/0x85b332122371f3c08253844b6170e8dac0c8c2fb) |
+| **Erc8183ProportionalAdapter** | [`0x44A0a6DEFE24F8CA84a3E5390Ab3f656Db306CaB`](https://testnet.arcscan.app/address/0x44a0a6defe24f8ca84a3e5390ab3f656db306cab) |
+
+Deployment txs: market [`0x6ba571a3…`](https://testnet.arcscan.app/tx/0x6ba571a3e940cc4465a7e5ff73e32f45c19781724fb1f2bf5f7c733609ead983) · resolver [`0xd8113bc8…`](https://testnet.arcscan.app/tx/0xd8113bc89004e0316288251c1dd72452b816abbc0efcc7ba27071221811c7720) · adapter [`0xc92706c4…`](https://testnet.arcscan.app/tx/0xc92706c44645ab275d1b160f4a26603fc078459370e2d59f7f9961f895116cec)
+
+**New in v0.7:** continuous proportional payout (fuzz-proven conservation) · **staker-participant decoupling** (a market's own parties can't resolve it) · pre-committed `criteriaHash` + typed dispute taxonomy · an **ERC-8183 binary→proportional adapter**. A window-denial bypass of decoupling was found & fixed during self-audit (see CHANGELOG). Full write-up: [`docs/repositioning-v0.7.md`](docs/repositioning-v0.7.md) · Grant draft: [`docs/grant-application-v0.7.md`](docs/grant-application-v0.7.md).
+
+### v0.6 — Arc Testnet (previous)
 
 | Component | Address on Arc Testnet |
 |---|---|
