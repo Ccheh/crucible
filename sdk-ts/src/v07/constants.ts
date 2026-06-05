@@ -4,8 +4,14 @@ import type { Hex } from "../types.js";
  *  (chain 5042002). See docs/repositioning-v0.7.md. */
 export const CRUCIBLE_V7_ARC_TESTNET = {
   market: "0x9934bAF33bcF0dfD14040f8ddd5DdF18eCfEFb59" as Hex,
+  /** ScalarResolverV7 — staker-participant decoupling (the v0.7 baseline resolver). */
   resolver: "0x85b332122371f3c08253844B6170e8daC0c8c2fB" as Hex,
   erc8183Adapter: "0x44A0a6DEFE24F8CA84a3E5390Ab3f656Db306CaB" as Hex,
+  /** ScalarResolverV8 — adds ERC-8004 identity-level decoupling (registry dormant on Arc). */
+  resolverV8: "0xDf518581DA89f214F2260b343f9569DD5C8BC5A4" as Hex,
+  /** ScalarResolverV9 — adds calibration-weighted consensus
+   *  (voteWeight = stake × earned-accuracy calibration, 0.25×…1.50×). */
+  resolverV9: "0xae78729a7656c36215D1676c2Bd2E273aF3343fc" as Hex,
 } as const;
 
 /** Dispute lens declared by the agent on `dispute(marketId, kind)`. Must not be

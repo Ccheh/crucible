@@ -43,10 +43,12 @@ Schelling engine that turns any intersubjective outcome into a continuous score
 `[0,10000]` and splits escrow *proportionally*, composing under Circle's own
 rails rather than competing with them.
 
-**Deployed, chain 5042002, 172 tests + fuzz passing:**
+**Deployed, chain 5042002, 184 tests + fuzz passing:**
 - `CrucibleMarketV7` `0x9934bAF33bcF0dfD14040f8ddd5DdF18eCfEFb59`
 - `ScalarResolverV7` `0x85b332122371f3c08253844B6170e8daC0c8c2fB`
 - `Erc8183ProportionalAdapter` `0x44A0a6DEFE24F8CA84a3E5390Ab3f656Db306CaB`
+- `ScalarResolverV8` `0xDf518581DA89f214F2260b343f9569DD5C8BC5A4` (ERC-8004 identity-level decoupling)
+- `ScalarResolverV9` `0xae78729a7656c36215D1676c2Bd2E273aF3343fc` (calibration-weighted consensus)
 
 ## 3. Why it's defensible (vs the field, honestly)
 
@@ -55,13 +57,27 @@ rails rather than competing with them.
 | payout | **continuous proportional** | 4-bucket step | binary |
 | security | **USDC, no token** | mandatory $KAMIYO memecoin | reflexive UMA token |
 | judge≠participant | **enforced on-chain** | coupled | coupled (the MSTR flaw) |
+| validator weighting | **stake × earned calibration** (self-generated on-chain accuracy track record) | stake only | token-balance only |
 | substrate | **Arc + USDC + ERC-8183/8004** | Solana, no Arc | Polygon, anon-only |
 
 The moat is founder-fit: applying Polymarket-grade mechanism design to the exact
 failure mode the incumbent is bleeding on, on the one chain whose identity
 primitives let it be fixed differently. (We do **not** claim "first graded
 refund" — KAMIYO shipped graded-ish on Solana — nor that competitors lack rigor.
-We win on continuity + no-token + Arc-native + decoupling.)
+We win on continuity + no-token + Arc-native + decoupling + calibration.)
+
+**Calibration-weighted consensus** (`ScalarResolverV9`, live) is the
+mechanism-design contribution closest to the founder's edge: a validator's
+influence is its stake scaled by an *earned* accuracy track record the contract
+maintains itself (`weight = stake × calibration`, calibration ∈ 0.25×…1.50×,
+rising when you vote with consensus, falling when you're an outlier). Fresh
+capital is worth half a proven validator's, and — crucially — this reputation is
+**self-generated on-chain**, so it works *today* without waiting for ERC-8004
+reputation to populate on Arc. Honestly scoped: it is a *bounded tilt* toward
+accuracy, not a whale defense (a supermajority whale is still handled by the 40%
+vote cap + a distributed validator set). Proven by a control-vs-treatment test
+pair where the same capital and the same votes resolve to `2000` with fresh
+validators but flip to `8000` once the high camp has earned its calibration.
 
 ## 4. Circle / Arc integration (core to the value flow, not bolted on)
 
@@ -80,13 +96,13 @@ We win on continuity + no-token + Arc-native + decoupling.)
 | # | Deliverable | Proof | $ |
 |---|---|---|---|
 | **M1 (done)** | v0.7 graded-resolution layer live on Arc Testnet: decoupling, criteria pre-commitment, typed disputes, ERC-8183 adapter; window-denial vuln found & fixed; 172 tests + fuzz | the 3 addresses above + repo | $5K |
-| **M2** | ERC-8004 identity linking (sybil-resistant decoupling) + optional identity-gated resolver pool with on-chain disclosure — the compliance seam only Arc can serve | contracts + tests + testnet demo | $7K |
+| **M2 (core done)** | ERC-8004 identity linking (sybil-resistant decoupling, `ScalarResolverV8`) **and calibration-weighted consensus** (`ScalarResolverV9` — self-generated on-chain validator reputation) both live on Arc Testnet; remaining: optional identity-gated resolver pool with on-chain disclosure — the compliance seam only Arc can serve | both resolvers deployed + 184 tests; gated pool = contracts + testnet demo | $7K |
 | **M3** | End-to-end reference: an ERC-8183 / x402 AI service paid proportional-to-quality on Arc, with a public browser verifier (anyone re-runs the resolution) | live demo + walkthrough video | $7K |
 | **M4** | Security: external audit prep, economic stress tests of the median+slash game, formal invariants; first external integrator (LOI) | audit report + integrator | $6K |
 
 ## 6. Traction & path
 
-- Live testnet deployment + 172 tests today (M1 complete before funding).
+- Live testnet deployment + 184 tests today (M1 complete, M2 core shipped, before funding).
 - Open-source (MIT), admin-keyless, no token — aligned with Arc's institutional
   posture.
 - Picks-and-shovels to a Circle-funded demand wave: the dozens of Arc

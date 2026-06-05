@@ -19,7 +19,8 @@
   - `CrucibleMarketV7` — `0x9934bAF33bcF0dfD14040f8ddd5DdF18eCfEFb59`
   - `ScalarResolverV7` — `0x85b332122371f3c08253844B6170e8daC0c8c2fB`
   - `Erc8183ProportionalAdapter` — `0x44A0a6DEFE24F8CA84a3E5390Ab3f656Db306CaB`
-  - 172 forge tests + fuzz invariants passing.
+  - `ScalarResolverV8` (ERC-8004 identity) / `ScalarResolverV9` (calibration-weighted)
+  - 184 forge tests + fuzz invariants passing.
 - **Four differentiators**, each verified in code, against the closest
   competitor (KAMIYO, Solana) and the incumbent (UMA): **continuous (not
   bucketed)** payout · **no token (USDC-bonded)** · **staker-participant
@@ -148,8 +149,8 @@ settling at score 10000 in the participant's own favor.
 | ScalarResolverV7 | `0x85b332122371f3c08253844B6170e8daC0c8c2fB` | `0xd8113bc89004e0316288251c1dd72452b816abbc0efcc7ba27071221811c7720` |
 | Erc8183ProportionalAdapter | `0x44A0a6DEFE24F8CA84a3E5390Ab3f656Db306CaB` | `0xc92706c44645ab275d1b160f4a26603fc078459370e2d59f7f9961f895116cec` |
 
-Tests: **172 passing** (142 v0–v0.6 baseline + 30 v0.7 incl. fuzz invariants).
-EIP-712 domain `"Crucible" / "7"`.
+Tests: **184 passing** (142 v0–v0.6 baseline + 30 v0.7 + 7 V8 identity + 5 V9
+calibration, incl. fuzz invariants). EIP-712 domain `"Crucible" / "7"`.
 
 ---
 
@@ -158,13 +159,26 @@ EIP-712 domain `"Crucible" / "7"`.
 - **Sybil**: decoupling bars the *literal* service/agent addresses; a determined
   participant could vote from a fresh wallet. **M2 (done)** adds ERC-8004
   identity-level decoupling — `ScalarResolverV8`
-  (`0xDf518581DA89f214F2260b343f9569DD5C8BC5A4`, Arc Testnet, 179 tests) bars
+  (`0xDf518581DA89f214F2260b343f9569DD5C8BC5A4`, Arc Testnet) bars
   every address a participant's *identity* controls (`linkIdentity` +
-  identity-keyed conflict). Residual fresh-identity sybils stay bounded by
-  stake + slash; **reputation-weighted voting** (so a zero-reputation sybil
-  identity carries ~zero weight) is the durable fix and the next milestone.
-  Registry is dormant (`address(0)`) until a canonical ERC-8004 IdentityRegistry
-  is live on Arc; identity behavior is proven by the V8 test suite.
+  identity-keyed conflict). Registry is dormant (`address(0)`) until a canonical
+  ERC-8004 IdentityRegistry is live on Arc; identity behavior is proven by the
+  V8 test suite.
+- **Fresh-wallet sybil weight — now mitigated without waiting on the ecosystem.**
+  `ScalarResolverV9` (`0xae78729a7656c36215D1676c2Bd2E273aF3343fc`, Arc Testnet)
+  adds **calibration-weighted consensus**: `voteWeight = stake × calibration`,
+  where calibration ∈ `[0.25×, 1.50×]` is an accuracy track record the contract
+  generates itself (rises when you vote with consensus, falls on outliers). A
+  fresh wallet starts at 0.50× — worth half a proven validator's stake — and a
+  proven-inaccurate one decays to 0.25×. This is the durable fix that, unlike
+  ERC-8004 reputation-weighting (≈zero adoption on Arc today), works **now**
+  because the reputation is self-generated on-chain.
+  **Honest scope:** calibration is a *bounded tilt* (0.25×…1.50×), not a whale
+  defense — a supermajority whale is still bounded by the 40% vote cap +
+  validator-set distribution, not by calibration. Proven by a control/treatment
+  test pair: equal stake and identical votes resolve to `2000` with fresh
+  validators, but flip to `8000` once the high camp has *earned* its
+  calibration (`test_headline_calibrationFlipsBetweenEqualStakeCamps`).
 - **Compliance-gated resolver pool** (identity-gated proposers/disputers with
   on-chain disclosure) — the seam only Arc can serve — is designed, not yet
   built.

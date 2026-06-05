@@ -60,6 +60,35 @@ See `docs/repositioning-v0.7.md` and `docs/grant-application-v0.7.md`.
   `ScalarResolverV8` — `0xDf518581DA89f214F2260b343f9569DD5C8BC5A4` (tx `0x0b29a406…09ddd`).
 - +7 tests: **179 forge tests passing.**
 
+### M3 — calibration-weighted consensus (the headline innovation)
+
+- `src/v07/ScalarResolverV9.sol` — replaces pure stake-weighted voting with
+  **calibration-weighted** voting: `voteWeight = stake × calibration / 8000`,
+  where `calibration ∈ [2000, 12000]` (0.25×…1.50× of stake) is an on-chain
+  accuracy track record the contract maintains itself. Fresh capital starts at
+  `4000` (0.50×); each market a validator votes with the (weighted-median)
+  consensus raises its calibration one step (toward proven 1.50×), each outlier
+  lowers it (toward 0.25×). Calibration is applied to the median, the cap, the
+  slash-survivors' reward share, and is updated **after** weighting so it only
+  affects future markets (no same-market reflexivity). This is the durable
+  fresh-identity-sybil mitigation that needs **no external ecosystem**: unlike
+  the ERC-8004 reputation-weighting we deferred (≈zero adoption on Arc today),
+  the resolver generates its own reputation from realized accuracy.
+- **Honest scope (verified in tests, not overclaimed):** calibration is a
+  *bounded tilt* (0.25×…1.50×), not a standalone whale defense. It makes earned
+  accuracy decide outcomes among comparable-stake validators and makes fresh
+  capital worth half a proven validator's — but a *supermajority* whale is still
+  bounded by the 40% vote cap + a distributed validator set, not by calibration.
+  The headline test `test_headline_calibrationFlipsBetweenEqualStakeCamps`
+  proves two proven validators (calibration 6000) flip a market's outcome from
+  `2000` to `8000` against two equal-stake fresh validators — the control
+  (`test_control_allFresh_lowCampWins`, all fresh) resolves to `2000`. Same
+  capital, same votes; the only difference is earned accuracy.
+- Deployed to Arc Testnet (bound to `CrucibleMarketV7`; identity registry
+  dormant): `ScalarResolverV9` — `0xae78729a7656c36215D1676c2Bd2E273aF3343fc`
+  (tx `0xb5868bea…d5d7b0`).
+- +5 tests: **184 forge tests passing.**
+
 ---
 
 ## [Unreleased] — 2026-05-12
