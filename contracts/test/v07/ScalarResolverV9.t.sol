@@ -105,4 +105,46 @@ contract ScalarResolverV9Test is Test {
         uint256 score = _cycle(bytes32(uint256(12)), _four(L1, L2, Hh1, Hh2), _four16(2000, 2000, 8000, 8000));
         assertEq(score, 8000);
     }
+
+    /* ---------- KNOWN LIMITATION (demonstrated honestly, not hidden) ---------- */
+
+    /// @dev Calibration rewards a *track record of voting-with-consensus*, which
+    ///      a cartel can MANUFACTURE by voting with ITSELF on throwaway markets.
+    ///      Once farmed to the 1.50x ceiling, a 2-validator cartel can override
+    ///      FOUR equal-stake FRESH honest validators (cartel weight 3.0 > honest
+    ///      2.0) while holding HALF the stake. This is the flip side of the
+    ///      headline and is disclosed in docs/README honest-limits.
+    ///      Why it is bounded / mitigated, not fatal:
+    ///        (1) farming costs real USDC — each market needs escrow + dispute
+    ///            bond on CrucibleMarketV7;
+    ///        (2) the edge VANISHES once honest validators have themselves
+    ///            accrued calibration (it is only a bootstrap-phase asymmetry);
+    ///        (3) value-weighted calibration gain (future work) makes farming on
+    ///            dust-sized throwaway markets worthless.
+    function test_limitation_farmedCartelBeatsFreshHonest() public {
+        address A1 = makeAddr("A1");
+        address A2 = makeAddr("A2");
+        address H3 = makeAddr("H3");
+        address H4 = makeAddr("H4");
+        address[6] memory who = [A1, A2, L1, L2, H3, H4];
+        for (uint256 i; i < 6; i++) { vm.deal(who[i], 1000 ether); _stake(who[i], 1 ether); }
+
+        // Farm the cartel (A1, A2) to the 1.50x ceiling via 8 honest self-rounds.
+        for (uint256 r; r < 8; r++) {
+            _cycle(bytes32(uint256(100 + r)), _two(A1, A2), _two16(5000, 5000));
+        }
+        assertEq(resolver.effectiveCalibration(A1), resolver.CALIB_MAX()); // 12000 = 1.5x
+        assertEq(resolver.effectiveCalibration(L1), resolver.CALIB_START()); // honest stay fresh 0.5x
+
+        // Contested market: 4 fresh-honest push the true score 2000; the farmed
+        // 2-cartel pushes 10000. Cartel weight 3.0 > honest weight 2.0 -> cartel
+        // wins with HALF the stake. The test ASSERTS the limitation so a future
+        // mitigation that closes it will visibly flip this expectation.
+        address[] memory voters = new address[](6);
+        voters[0] = L1; voters[1] = L2; voters[2] = H3; voters[3] = H4; voters[4] = A1; voters[5] = A2;
+        uint16[] memory scores = new uint16[](6);
+        scores[0] = 2000; scores[1] = 2000; scores[2] = 2000; scores[3] = 2000; scores[4] = 10000; scores[5] = 10000;
+        uint256 score = _cycle(bytes32(uint256(200)), voters, scores);
+        assertEq(score, 10000);
+    }
 }

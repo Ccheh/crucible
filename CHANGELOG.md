@@ -87,7 +87,7 @@ See `docs/repositioning-v0.7.md` and `docs/grant-application-v0.7.md`.
 - Deployed to Arc Testnet (bound to `CrucibleMarketV7`; identity registry
   dormant): `ScalarResolverV9` — `0xae78729a7656c36215D1676c2Bd2E273aF3343fc`
   (tx `0xb5868bea…d5d7b0`).
-- +5 tests: **184 forge tests passing.**
+- +6 tests: **185 forge tests passing.**
 
 ---
 

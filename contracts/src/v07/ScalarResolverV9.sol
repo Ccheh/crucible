@@ -427,6 +427,18 @@ contract ScalarResolverV9 is IResolver, IResolverFeeReceiver, IResolverSubscript
         return (validatorStake[v] * effectiveCalibration(v)) / CALIB_SCALE;
     }
 
+    /// @dev KNOWN LIMITATION — calibration farming. Calibration rewards a track
+    ///      record of voting-with-consensus, which a cartel can MANUFACTURE by
+    ///      voting with itself on throwaway markets (proven by
+    ///      `test_limitation_farmedCartelBeatsFreshHonest`: a farmed 2-cartel
+    ///      overrides 4 fresh-honest validators while holding half the stake).
+    ///      It is BOUNDED, not fatal: (1) farming costs real USDC per market
+    ///      (escrow + dispute bond on the bound market); (2) the edge vanishes
+    ///      once honest validators have themselves accrued calibration — it is a
+    ///      bootstrap-phase asymmetry; (3) the durable fix is value-weighted
+    ///      calibration gain (scale the step by resolved escrow so dust-market
+    ///      farming earns ~nothing), and/or an asymmetric slow-rise/fast-fall
+    ///      step — both future work, documented in the README honest-limits.
     function _updateCalibration(address v, bool honest, bytes32 marketId) internal {
         uint256 c = effectiveCalibration(v);
         uint256 nc;
