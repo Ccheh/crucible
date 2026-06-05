@@ -156,9 +156,15 @@ EIP-712 domain `"Crucible" / "7"`.
 ## Honest limitations & roadmap
 
 - **Sybil**: decoupling bars the *literal* service/agent addresses; a determined
-  participant could vote from a fresh wallet. Mitigated today by stake + slash;
-  the durable fix is **ERC-8004 identity linking** (the Arc-native wedge) —
-  next milestone.
+  participant could vote from a fresh wallet. **M2 (done)** adds ERC-8004
+  identity-level decoupling — `ScalarResolverV8`
+  (`0xDf518581DA89f214F2260b343f9569DD5C8BC5A4`, Arc Testnet, 179 tests) bars
+  every address a participant's *identity* controls (`linkIdentity` +
+  identity-keyed conflict). Residual fresh-identity sybils stay bounded by
+  stake + slash; **reputation-weighted voting** (so a zero-reputation sybil
+  identity carries ~zero weight) is the durable fix and the next milestone.
+  Registry is dormant (`address(0)`) until a canonical ERC-8004 IdentityRegistry
+  is live on Arc; identity behavior is proven by the V8 test suite.
 - **Compliance-gated resolver pool** (identity-gated proposers/disputers with
   on-chain disclosure) — the seam only Arc can serve — is designed, not yet
   built.

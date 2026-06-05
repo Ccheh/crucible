@@ -48,6 +48,18 @@ See `docs/repositioning-v0.7.md` and `docs/grant-application-v0.7.md`.
 - +30 tests (3 new suites + fuzz invariants on proportional-split conservation):
   **172 forge tests passing** across v0 + v0.2 + … + v0.7.
 
+### M2 — ERC-8004 identity binding
+- `src/v07/ScalarResolverV8.sol` — extends ScalarResolverV7 with optional
+  **ERC-8004 identity-level decoupling**: `linkIdentity(agentId)` binds an
+  address to an ERC-8004 identity it owns/operates; on dispute, every address a
+  participant's identity controls is barred (not just the named address).
+  `IDENTITY_REGISTRY == address(0)` => behaves exactly like v0.7. Honest scope:
+  catches same-identity multi-address voting; adversarial fresh-identity sybils
+  remain bounded by stake+slash (reputation-weighting is a later milestone).
+- Deployed to Arc Testnet (registry dormant — none on Arc yet):
+  `ScalarResolverV8` — `0xDf518581DA89f214F2260b343f9569DD5C8BC5A4` (tx `0x0b29a406…09ddd`).
+- +7 tests: **179 forge tests passing.**
+
 ---
 
 ## [Unreleased] — 2026-05-12
