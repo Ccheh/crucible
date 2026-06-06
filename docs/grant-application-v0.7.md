@@ -43,12 +43,13 @@ Schelling engine that turns any intersubjective outcome into a continuous score
 `[0,10000]` and splits escrow *proportionally*, composing under Circle's own
 rails rather than competing with them.
 
-**Deployed, chain 5042002, 185 tests + fuzz passing:**
+**Deployed, chain 5042002, 191 tests + fuzz passing:**
 - `CrucibleMarketV7` `0x9934bAF33bcF0dfD14040f8ddd5DdF18eCfEFb59`
 - `ScalarResolverV7` `0x85b332122371f3c08253844B6170e8daC0c8c2fB`
 - `Erc8183ProportionalAdapter` `0x44A0a6DEFE24F8CA84a3E5390Ab3f656Db306CaB`
 - `ScalarResolverV8` `0xDf518581DA89f214F2260b343f9569DD5C8BC5A4` (ERC-8004 identity-level decoupling)
 - `ScalarResolverV9` `0xae78729a7656c36215D1676c2Bd2E273aF3343fc` (calibration-weighted consensus)
+- `ScalarResolverV10` `0xb377b32a65166bcA3d9b14B8C5c1B636817F4c01` (value-weighted calibration — anti-farming)
 
 ## 3. Why it's defensible (vs the field, honestly)
 
@@ -80,11 +81,16 @@ pair where the same capital and the same votes resolve to `2000` with fresh
 validators but flip to `8000` once the high camp has earned its calibration. We
 also ship the *flip side* of the same mechanism, demonstrated not hidden: a
 cartel can farm calibration on throwaway markets and at bootstrap override fresh
-honest validators (`test_limitation_farmedCartelBeatsFreshHonest`). It is
-bounded — farming costs real USDC per market, the edge vanishes once honest
-validators also accrue calibration, and value-weighted calibration gain is the
-durable fix (a funded milestone item). Disclosing a demonstrated, bounded attack
-on our own mechanism is the founder-fit signal, not a weakness.
+honest validators (`test_limitation_farmedCartelBeatsFreshHonest`). **We then
+shipped the fix:** `ScalarResolverV10` (live) ties the calibration step to a
+market's economic weight, so a dust market grants ≈ zero calibration —
+`test_fix_dustFarmingCannotOverrideHonest` replays the exact attack and the
+honest value now wins (`2000`, not the cartel's `10000`), while the legitimate
+mechanism stays intact on real-value markets. The honest residual (a
+*capitalised* self-dealing cartel that routes real escrow recovers most of the
+fee) is the target of the next milestone (cohort-diversity crediting).
+Demonstrating an attack on our own mechanism **and** shipping the fix in one
+sprint is the founder-fit signal, not a weakness.
 
 ## 4. Circle / Arc integration (core to the value flow, not bolted on)
 
@@ -103,13 +109,13 @@ on our own mechanism is the founder-fit signal, not a weakness.
 | # | Deliverable | Proof | $ |
 |---|---|---|---|
 | **M1 (done)** | v0.7 graded-resolution layer live on Arc Testnet: decoupling, criteria pre-commitment, typed disputes, ERC-8183 adapter; window-denial vuln found & fixed; 172 tests + fuzz | the 3 addresses above + repo | $5K |
-| **M2 (core done)** | ERC-8004 identity linking (sybil-resistant decoupling, `ScalarResolverV8`) **and calibration-weighted consensus** (`ScalarResolverV9` — self-generated on-chain validator reputation) both live on Arc Testnet; remaining: optional identity-gated resolver pool with on-chain disclosure — the compliance seam only Arc can serve | both resolvers deployed + 185 tests; gated pool = contracts + testnet demo | $7K |
+| **M2 (core done)** | ERC-8004 identity linking (`ScalarResolverV8`), **calibration-weighted consensus** (`ScalarResolverV9`), and **value-weighted calibration that closes the farming vector** (`ScalarResolverV10`) all live on Arc Testnet; remaining: optional identity-gated resolver pool with on-chain disclosure — the compliance seam only Arc can serve | 3 resolvers deployed + 191 tests (incl. attack + fix tests); gated pool = contracts + testnet demo | $7K |
 | **M3** | End-to-end reference: an ERC-8183 / x402 AI service paid proportional-to-quality on Arc, with a public browser verifier (anyone re-runs the resolution) | live demo + walkthrough video | $7K |
 | **M4** | Security: external audit prep, economic stress tests of the median+slash game, formal invariants; first external integrator (LOI) | audit report + integrator | $6K |
 
 ## 6. Traction & path
 
-- Live testnet deployment + 185 tests today (M1 complete, M2 core shipped, before funding).
+- Live testnet deployment + 191 tests today (M1 complete, M2 core shipped, before funding).
 - Open-source (MIT), admin-keyless, no token — aligned with Arc's institutional
   posture.
 - Picks-and-shovels to a Circle-funded demand wave: the dozens of Arc

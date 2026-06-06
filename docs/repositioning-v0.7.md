@@ -20,7 +20,7 @@
   - `ScalarResolverV7` — `0x85b332122371f3c08253844B6170e8daC0c8c2fB`
   - `Erc8183ProportionalAdapter` — `0x44A0a6DEFE24F8CA84a3E5390Ab3f656Db306CaB`
   - `ScalarResolverV8` (ERC-8004 identity) / `ScalarResolverV9` (calibration-weighted)
-  - 185 forge tests + fuzz invariants passing.
+  - 191 forge tests + fuzz invariants passing.
 - **Four differentiators**, each verified in code, against the closest
   competitor (KAMIYO, Solana) and the incumbent (UMA): **continuous (not
   bucketed)** payout · **no token (USDC-bonded)** · **staker-participant
@@ -149,7 +149,7 @@ settling at score 10000 in the participant's own favor.
 | ScalarResolverV7 | `0x85b332122371f3c08253844B6170e8daC0c8c2fB` | `0xd8113bc89004e0316288251c1dd72452b816abbc0efcc7ba27071221811c7720` |
 | Erc8183ProportionalAdapter | `0x44A0a6DEFE24F8CA84a3E5390Ab3f656Db306CaB` | `0xc92706c44645ab275d1b160f4a26603fc078459370e2d59f7f9961f895116cec` |
 
-Tests: **185 passing** (142 v0–v0.6 baseline + 30 v0.7 + 7 V8 identity + 6 V9
+Tests: **191 passing** (142 v0–v0.6 baseline + 30 v0.7 + 7 V8 identity + 6 V9
 calibration, incl. fuzz invariants). EIP-712 domain `"Crucible" / "7"`.
 
 ---
@@ -179,15 +179,21 @@ calibration, incl. fuzz invariants). EIP-712 domain `"Crucible" / "7"`.
   test pair: equal stake and identical votes resolve to `2000` with fresh
   validators, but flip to `8000` once the high camp has *earned* its
   calibration (`test_headline_calibrationFlipsBetweenEqualStakeCamps`).
-  **And its flip side — calibration is farmable at bootstrap (disclosed +
-  demonstrated):** a cartel can manufacture a consensus track record by voting
-  with itself on throwaway markets; `test_limitation_farmedCartelBeatsFreshHonest`
-  shows a farmed 2-cartel overriding four fresh-honest validators with half the
-  stake. Bounded because (1) farming costs real USDC per market, (2) the edge
-  vanishes once honest validators also accrue calibration (bootstrap-only), and
-  (3) value-weighted calibration gain (scale the step by resolved escrow) is the
-  durable fix — future work. We ship the limitation visibly rather than hide it;
-  the headline and its flip side are the *same* mechanism.
+  **And its flip side — calibration was farmable, now fixed in V10:** a cartel
+  can manufacture a consensus track record by voting with itself on throwaway
+  markets; `test_limitation_farmedCartelBeatsFreshHonest` shows a farmed 2-cartel
+  overriding four fresh-honest validators with half the stake. **`ScalarResolverV10`
+  (`0xb377b32a65166bcA3d9b14B8C5c1B636817F4c01`, Arc Testnet) closes the cheap
+  version:** the calibration step now scales with the market's economic weight
+  (resolver fee ∝ escrow), so a dust market grants ≈ zero calibration.
+  `test_fix_dustFarmingCannotOverrideHonest` replays the attack on dust markets
+  and the honest value wins (`2000`, not `10000`); `test_headline_stillWorks_on
+  ValuedMarkets` confirms the legitimate mechanism survives. **Honest residual:**
+  value-weighting kills the *cheap* dust-spam farm but not a *capitalised*
+  self-dealing cartel (it recovers most of the fee via its own validators); the
+  deeper fix — cohort-diversity crediting — is the next milestone. We ship the
+  attack *and* the fix in the open; the headline and its flip side are the *same*
+  mechanism.
 - **Compliance-gated resolver pool** (identity-gated proposers/disputers with
   on-chain disclosure) — the seam only Arc can serve — is designed, not yet
   built.

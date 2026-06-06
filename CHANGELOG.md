@@ -89,6 +89,38 @@ See `docs/repositioning-v0.7.md` and `docs/grant-application-v0.7.md`.
   (tx `0xb5868bea…d5d7b0`).
 - +6 tests: **185 forge tests passing.**
 
+### M4 — value-weighted calibration (closes the V9 farming vector)
+
+- `src/v07/ScalarResolverV10.sol` — fixes the calibration-farming vector
+  demonstrated against V9. V9 moved calibration by a FIXED step per resolved
+  market, so a cartel could manufacture a high accuracy record by voting with
+  itself on dust-sized throwaway markets. V10 ties the step to the market's
+  **economic weight**: `step = CALIB_STEP × min(feePool, CALIB_FEE_REFERENCE) /
+  CALIB_FEE_REFERENCE` (feePool = the resolver fee, a fixed bps cut of escrow,
+  hence a faithful proxy for the value settled). A ~zero-fee market moves
+  calibration by ~0; farming therefore costs real economic throughput per step
+  instead of being free. `CALIB_FEE_REFERENCE` is a deploy-time tuning param
+  (immutable; `0` disables value-weighting → identical to V9, for differential
+  tests only).
+- **The fix, proven:** `test_fix_dustFarmingCannotOverrideHonest` replays the V9
+  attack on dust markets — the cartel stays fresh (calibration 4000, not farmed
+  to 12000) and the market now resolves to the honest `2000`, **not** the
+  cartel's `10000`. `test_headline_stillWorks_onValuedMarkets` shows the
+  legitimate mechanism intact: validators that earn calibration on real-value
+  markets still flip `2000 → 8000`. `test_dustMarket_noCalibrationGain` /
+  `test_valuedMarket_calibrationRises` lock the boundary.
+- **Honest residual:** value-weighting kills the *cheap* dust-spam farm; it does
+  not make a *capitalised* self-dealing cartel impossible — a cartel routing real
+  escrow through markets it fully controls recovers most of the fee (it flows
+  back to its own voting validators), so its true cost is gas + capital lockup +
+  commit/reveal time per step, not the fee itself. The deeper fix —
+  cohort-diversity crediting (calibration only for agreement with validators
+  outside the voter's recent cohort) — is the next milestone.
+- Deployed to Arc Testnet (bound to `CrucibleMarketV7`):
+  `ScalarResolverV10` — `0xb377b32a65166bcA3d9b14B8C5c1B636817F4c01`
+  (tx `0x03caf35e…e9ccf`; `CALIB_FEE_REFERENCE = 0.001 ether` testnet floor).
+- +6 tests: **191 forge tests passing.**
+
 ---
 
 ## [Unreleased] — 2026-05-12

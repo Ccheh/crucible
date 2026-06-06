@@ -12,6 +12,10 @@ export const CRUCIBLE_V7_ARC_TESTNET = {
   /** ScalarResolverV9 — adds calibration-weighted consensus
    *  (voteWeight = stake × earned-accuracy calibration, 0.25×…1.50×). */
   resolverV9: "0xae78729a7656c36215D1676c2Bd2E273aF3343fc" as Hex,
+  /** ScalarResolverV10 — value-weighted calibration: the per-market calibration
+   *  step scales with the market's resolver fee (∝ escrow), closing the V9
+   *  dust-market calibration-farming vector. CALIB_FEE_REFERENCE = 0.001e on testnet. */
+  resolverV10: "0xb377b32a65166bcA3d9b14B8C5c1B636817F4c01" as Hex,
 } as const;
 
 /** Dispute lens declared by the agent on `dispute(marketId, kind)`. Must not be
