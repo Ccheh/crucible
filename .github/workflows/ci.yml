@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  contracts:
+    name: Solidity (Foundry)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: contracts
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: forge build
+        run: forge build --sizes
+
+      - name: forge test
+        run: forge test -vv
+
+  sdk-ts:
+    name: TypeScript SDK (vitest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sdk-ts
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "npm"
+          cache-dependency-path: sdk-ts/package-lock.json
+
+      # npm install (not ci): lockfiles authored on Windows lack foreign-platform
+      # optional dep entries (npm cross-platform bug), so npm ci can't pass on Linux.
+      - run: npm install --no-audit --no-fund
+      - run: npm run test
