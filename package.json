@@ -23,7 +23,9 @@
   },
   "homepage": "https://github.com/Ccheh/crucible#readme",
   "dependencies": {
-    "tsx": "^4.21.0",
     "viem": "^2.48.11"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.1"
   }
 }
