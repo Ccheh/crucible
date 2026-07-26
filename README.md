@@ -2,6 +2,7 @@
 
 > **The graded-resolution layer for Arc** — a USDC-bonded, staker-participant-decoupled Schelling resolver that turns any intersubjective outcome into a *continuous* score and splits escrow proportionally. The verdict layer Circle's Blueprints punt to builders, and that UMA's token-vote model structurally cannot fix. *(v0.7 repositioning — see [`docs/repositioning-v0.7.md`](docs/repositioning-v0.7.md). Originally framed as "Schelling consensus on AI output quality used as a payment-settlement primitive.")*
 
+[![CI](https://github.com/Ccheh/crucible/actions/workflows/ci.yml/badge.svg)](https://github.com/Ccheh/crucible/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Arc Testnet](https://img.shields.io/badge/Arc%20Testnet-v0.7%20live-blue)](https://testnet.arcscan.app/address/0x9934bAF33bcF0dfD14040f8ddd5DdF18eCfEFb59)
 [![Tests](https://img.shields.io/badge/tests-191%2F191%20passing-success)](#)
