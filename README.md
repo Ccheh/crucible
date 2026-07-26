@@ -1,10 +1,10 @@
 # Crucible
 
-> **Stake-weighted Schelling consensus on AI output quality, used as a payment-settlement primitive.** A research-grade protocol on Arc that asks: *what if AI service payments resolved on a market-derived quality score, not just delivery?*
+> **The graded-resolution layer for Arc** — a USDC-bonded, staker-participant-decoupled Schelling resolver that turns any intersubjective outcome into a *continuous* score and splits escrow proportionally. The verdict layer Circle's Blueprints punt to builders, and that UMA's token-vote model structurally cannot fix. *(v0.7 repositioning — see [`docs/repositioning-v0.7.md`](docs/repositioning-v0.7.md). Originally framed as "Schelling consensus on AI output quality used as a payment-settlement primitive.")*
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Arc Testnet](https://img.shields.io/badge/Arc%20Testnet-v0.6%20live-blue)](https://testnet.arcscan.app/address/0x6535a3cbb4235746b732ab5d55c6b0988f381a20)
-[![Tests](https://img.shields.io/badge/tests-142%2F142%20passing-success)](#)
+[![Arc Testnet](https://img.shields.io/badge/Arc%20Testnet-v0.7%20live-blue)](https://testnet.arcscan.app/address/0x9934bAF33bcF0dfD14040f8ddd5DdF18eCfEFb59)
+[![Tests](https://img.shields.io/badge/tests-191%2F191%20passing-success)](#)
 [![Solidity](https://img.shields.io/badge/Solidity-0.8.28-blue)](contracts/foundry.toml)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue)](sdk-ts/tsconfig.json)
 
@@ -15,9 +15,9 @@
 ## At a glance
 
 ```
-6 protocol versions shipped (v0 → v0.6), each frozen as deployable artifact
-142 forge tests + 7 SDK tests passing
-v0.6 live on Arc Testnet — deployed for ~0.088 USDC of gas
+9 protocol versions shipped (v0 → v0.7 + V8/V9/V10 resolvers), each a deployable artifact
+191 forge tests + 7 SDK tests passing
+v0.7 live on Arc Testnet — graded-resolution layer (V7/V8/V9/V10 resolvers deployed)
 TypeScript SDK supports both v0 (initial release) and v0.6 (latest)
 MIT licensed, no admin keys, no upgrade proxy, ~2,600 LOC Solidity
 Built above Cadence (Arc402) base payment layer
@@ -31,7 +31,24 @@ What this isn't: production payment rail (yet) — no third-party adopters,
                  pre-audit, validator network not bootstrapped
 ```
 
-### v0.6 (current — latest) — Arc Testnet
+### v0.7 (current — latest) — Arc Testnet — graded-resolution layer
+
+| Component | Address on Arc Testnet |
+|---|---|
+| **CrucibleMarketV7** | [`0x9934bAF33bcF0dfD14040f8ddd5DdF18eCfEFb59`](https://testnet.arcscan.app/address/0x9934bAF33bcF0dfD14040f8ddd5DdF18eCfEFb59) |
+| **ScalarResolverV7** *(staker-participant decoupled)* | [`0x85b332122371f3c08253844B6170e8daC0c8c2fB`](https://testnet.arcscan.app/address/0x85b332122371f3c08253844b6170e8dac0c8c2fb) |
+| **Erc8183ProportionalAdapter** | [`0x44A0a6DEFE24F8CA84a3E5390Ab3f656Db306CaB`](https://testnet.arcscan.app/address/0x44a0a6defe24f8ca84a3e5390ab3f656db306cab) |
+| **ScalarResolverV8** *(M2: ERC-8004 identity-level decoupling)* | [`0xDf518581DA89f214F2260b343f9569DD5C8BC5A4`](https://testnet.arcscan.app/address/0xdf518581da89f214f2260b343f9569dd5c8bc5a4) |
+| **ScalarResolverV9** *(M3: calibration-weighted consensus)* | [`0xae78729a7656c36215D1676c2Bd2E273aF3343fc`](https://testnet.arcscan.app/address/0xae78729a7656c36215d1676c2bd2e273af3343fc) |
+| **ScalarResolverV10** *(M4: value-weighted calibration — anti-farming)* | [`0xb377b32a65166bcA3d9b14B8C5c1B636817F4c01`](https://testnet.arcscan.app/address/0xb377b32a65166bca3d9b14b8c5c1b636817f4c01) |
+
+Deployment txs: market [`0x6ba571a3…`](https://testnet.arcscan.app/tx/0x6ba571a3e940cc4465a7e5ff73e32f45c19781724fb1f2bf5f7c733609ead983) · resolver [`0xd8113bc8…`](https://testnet.arcscan.app/tx/0xd8113bc89004e0316288251c1dd72452b816abbc0efcc7ba27071221811c7720) · adapter [`0xc92706c4…`](https://testnet.arcscan.app/tx/0xc92706c44645ab275d1b160f4a26603fc078459370e2d59f7f9961f895116cec) · V9 [`0xb5868bea…`](https://testnet.arcscan.app/tx/0xb5868beafc9bdecc460e4119f2ea463a21706882f9c40be90864877a1ad5d7b0) · V10 [`0x03caf35e…`](https://testnet.arcscan.app/tx/0x03caf35ec790969939767e9e0352f6ddf0e2d9b9d38229a7779d7910c64e9ccf)
+
+**New in v0.7:** continuous proportional payout (fuzz-proven conservation) · **staker-participant decoupling** (a market's own parties can't resolve it) · pre-committed `criteriaHash` + typed dispute taxonomy · an **ERC-8183 binary→proportional adapter**. A window-denial bypass of decoupling was found & fixed during self-audit (see CHANGELOG).
+
+**M2/M3/M4 since:** **ERC-8004 identity-level decoupling** (`ScalarResolverV8` — bars every address a participant's *identity* controls); **calibration-weighted consensus** (`ScalarResolverV9` — `voteWeight = stake × earned-accuracy calibration`, 0.25×…1.50×, so fresh capital is worth half a proven validator's; a self-generated on-chain reputation that needs no external ecosystem); and **value-weighted calibration** (`ScalarResolverV10` — the calibration step scales with a market's economic weight, closing the V9 calibration-farming vector demonstrated in our own test suite). Honestly scoped: calibration is a *bounded tilt* toward accuracy, not a whale defense, and V10 kills cheap farming but not a capitalised self-dealing cartel (see Honest limits). Full write-up: [`docs/repositioning-v0.7.md`](docs/repositioning-v0.7.md) · Grant draft: [`docs/grant-application-v0.7.md`](docs/grant-application-v0.7.md).
+
+### v0.6 — Arc Testnet (previous)
 
 | Component | Address on Arc Testnet |
 |---|---|
@@ -227,11 +244,12 @@ A Crucible-protected service can:
 The mechanism design and engineering are real. The market validation is not. Specifically:
 
 - **No production adopters.** Every on-chain transaction was generated by our own scripts. No third-party AI service uses Crucible. The "validator network" today is **the smart contracts, not an active set of staked validators** — we deployed the infrastructure but it has not bootstrapped a real network.
-- **Pre-audit.** 142 forge tests pass, but no independent security audit. Treat as testnet-only research code.
+- **Pre-audit.** 191 forge tests pass, but no independent security audit. Treat as testnet-only research code.
 - **The killer demo (real LLM end-to-end) is in progress** — see [`sdk-ts/examples/`](sdk-ts/examples/). The deterministic mock LLM is shipped; the real-API integration is the next milestone, not a current claim.
 - **ERC-8004 reputation events are emitted but not yet read** by any indexer. The schema is designed for forward compatibility when ERC-8004 indexers emerge; today they are just structured log events.
 - **Arc-specificity is loose.** Crucible could run on any EVM chain. We chose Arc because (a) USDC native gas keeps sub-cent settlement clean, and (b) Arc is Circle's agentic-economy bet. There is no technical mechanism that requires Arc specifically.
-- **Schelling consensus has a known >50%-stake-attack ceiling.** The 40% voting weight cap mitigates the 40–70% range; >70% stake by a single coordinated party cannot be mitigated by any one-shot mechanism. This is a property of the design, not a bug.
+- **Schelling consensus has a known >50%-stake-attack ceiling.** The 40% voting weight cap mitigates the 40–70% range; >70% stake by a single coordinated party cannot be mitigated by any one-shot mechanism. This is a property of the design, not a bug. **Calibration-weighting (V9) does *not* change this ceiling** — it is a bounded 0.25×…1.50× tilt toward earned accuracy, so it makes fresh capital worth less and lets proven validators decide among comparable-stake camps, but a supermajority whale is still bounded by the cap + validator-set distribution, not by calibration.
+- **Calibration-farming — demonstrated in V9, fixed in V10 (value-weighting).** Because calibration rewards a track record of voting-with-consensus, a cartel can *manufacture* that record by voting with itself on throwaway markets. `test_limitation_farmedCartelBeatsFreshHonest` (V9) proves a 2-validator cartel farmed to the 1.50× ceiling overrides **four** equal-stake *fresh* honest validators while holding **half** the stake. **`ScalarResolverV10` closes the cheap version of this:** the per-market calibration step now scales with the market's economic weight (resolver fee ∝ escrow), so a dust market grants ≈ zero calibration. `test_fix_dustFarmingCannotOverrideHonest` replays the exact attack on dust markets and the cartel stays fresh — the market resolves to the honest `2000`, not the cartel's `10000` — while `test_headline_stillWorks_onValuedMarkets` shows the legitimate mechanism intact on real-value markets. **Honest residual:** value-weighting kills the *cheap* dust-spam farm but not a *capitalised* self-dealing cartel that routes real escrow through markets it controls (it recovers most of the fee via its own validators; true cost = gas + capital lockup + commit/reveal time per step). The deeper fix — crediting calibration only for agreement with validators outside the voter's recent cohort (cohort-diversity) — is the next milestone. We ship the demonstrated limitation *and its fix* in the open rather than hide either.
 - **Validator economics require dispute volume to bootstrap.** Subscription pool (v0.4) gives validators baseline yield from all settlements, but the absolute amounts at testnet scale are negligible. Real economics need mainnet traffic.
 
 If you're considering integrating, treat this as **research infrastructure on a probabilistic-AI-payment thesis Circle is also pursuing**, not as production-ready rails.
@@ -242,7 +260,7 @@ If you're considering integrating, treat this as **research infrastructure on a 
 ✅ **TypeScript SDK**: `@crucible/sdk` with v0 clients + new `v06` module (ServiceClientV6, AgentClientV6, ValidatorClientV6)
 ✅ **Spec v0**: 15 sections + v0.2–v0.6 addenda in [docs/spec-v0.md](docs/spec-v0.md)
 ✅ **End-to-end optimistic-path demo on Arc Testnet** (real txs) — see [`sdk-ts/examples/v06-optimistic.ts`](sdk-ts/examples/v06-optimistic.ts)
-✅ **142 forge tests + 7 SDK tests passing**
+✅ **191 forge tests + 7 SDK tests passing**
 
 ⏳ **Open items** (we are deliberately stopping protocol work to focus here):
 - Real LLM integration in a demo (no more API stubs)

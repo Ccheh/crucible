@@ -6,6 +6,123 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [0.7.0] — 2026-06-05 — Graded-resolution layer (repositioning)
+
+Repositions Crucible from "prediction-market-settled AI service quality" into a
+general, USDC-bonded, **graded** resolution layer for Arc — the layer Circle's
+Blueprints punt to builders and that the failing UMA token-vote model cannot fix.
+See `docs/repositioning-v0.7.md` and `docs/grant-application-v0.7.md`.
+
+**Deployed to Arc Testnet (chain 5042002):**
+- `CrucibleMarketV7`           — `0x9934bAF33bcF0dfD14040f8ddd5DdF18eCfEFb59`  (tx `0x6ba571a3…ead983`)
+- `ScalarResolverV7`           — `0x85b332122371f3c08253844B6170e8daC0c8c2fB`  (tx `0xd8113bc8…1c7720`)
+- `Erc8183ProportionalAdapter` — `0x44A0a6DEFE24F8CA84a3E5390Ab3f656Db306CaB`  (tx `0xc92706c4…116cec`)
+
+### Added
+- `src/v07/ScalarResolverV7.sol` — generalized stake-weighted commit-reveal
+  Schelling resolver with **staker-participant decoupling**: a market's service
+  and agent (registered by the bound market via `onDispute`) are barred from
+  voting on it. Admin-keyless: `AUTHORIZED_MARKET` is immutable. Continuous
+  score `[0,10000]`. Carries over all v0.5 mechanics (median, 40% cap, slashing,
+  subscription pool, ERC-8004 events, 7-day cooldown).
+- `src/v07/CrucibleMarketV7.sol` — adds a **separate `criteriaHash`**
+  (pre-committed, machine-checkable resolution rubric, distinct from the
+  deliverable commitment) and a **typed `DisputeKind`** (Objective |
+  Intersubjective) declared on dispute. `dispute()` fires `onDispute` on the
+  resolver (opens voting + registers conflicts, atomic). EIP-712 domain → `"7"`;
+  `OpenAuth` typehash gains `criteriaHash` (no cross-version replay vs v0.6).
+- `src/v07/Erc8183ProportionalAdapter.sol` — standard-agnostic adapter that
+  upgrades ERC-8183's **binary** accept/reject into a **continuous proportional**
+  split driven by a Crucible resolved score (10000==complete, 0==reject).
+
+### Security
+- **Found & fixed a window-denial bypass of decoupling.** Because
+  `marketId = keccak(service,agent,nonce)` is known in advance and the resolver
+  originally bootstrapped its commit window on the first commit, a participant
+  could pre-commit to its own market to exhaust the commit clock before the
+  dispute (and conflict registration) landed, then let the market go stale and
+  `forceResolveStale` in its own favor. Fixed by opening the window only via the
+  market's `onDispute` at dispute time; pre-dispute commits revert `VotingNotOpen`.
+
+### Tests
+- +30 tests (3 new suites + fuzz invariants on proportional-split conservation):
+  **172 forge tests passing** across v0 + v0.2 + … + v0.7.
+
+### M2 — ERC-8004 identity binding
+- `src/v07/ScalarResolverV8.sol` — extends ScalarResolverV7 with optional
+  **ERC-8004 identity-level decoupling**: `linkIdentity(agentId)` binds an
+  address to an ERC-8004 identity it owns/operates; on dispute, every address a
+  participant's identity controls is barred (not just the named address).
+  `IDENTITY_REGISTRY == address(0)` => behaves exactly like v0.7. Honest scope:
+  catches same-identity multi-address voting; adversarial fresh-identity sybils
+  remain bounded by stake+slash (reputation-weighting is a later milestone).
+- Deployed to Arc Testnet (registry dormant — none on Arc yet):
+  `ScalarResolverV8` — `0xDf518581DA89f214F2260b343f9569DD5C8BC5A4` (tx `0x0b29a406…09ddd`).
+- +7 tests: **179 forge tests passing.**
+
+### M3 — calibration-weighted consensus (the headline innovation)
+
+- `src/v07/ScalarResolverV9.sol` — replaces pure stake-weighted voting with
+  **calibration-weighted** voting: `voteWeight = stake × calibration / 8000`,
+  where `calibration ∈ [2000, 12000]` (0.25×…1.50× of stake) is an on-chain
+  accuracy track record the contract maintains itself. Fresh capital starts at
+  `4000` (0.50×); each market a validator votes with the (weighted-median)
+  consensus raises its calibration one step (toward proven 1.50×), each outlier
+  lowers it (toward 0.25×). Calibration is applied to the median, the cap, the
+  slash-survivors' reward share, and is updated **after** weighting so it only
+  affects future markets (no same-market reflexivity). This is the durable
+  fresh-identity-sybil mitigation that needs **no external ecosystem**: unlike
+  the ERC-8004 reputation-weighting we deferred (≈zero adoption on Arc today),
+  the resolver generates its own reputation from realized accuracy.
+- **Honest scope (verified in tests, not overclaimed):** calibration is a
+  *bounded tilt* (0.25×…1.50×), not a standalone whale defense. It makes earned
+  accuracy decide outcomes among comparable-stake validators and makes fresh
+  capital worth half a proven validator's — but a *supermajority* whale is still
+  bounded by the 40% vote cap + a distributed validator set, not by calibration.
+  The headline test `test_headline_calibrationFlipsBetweenEqualStakeCamps`
+  proves two proven validators (calibration 6000) flip a market's outcome from
+  `2000` to `8000` against two equal-stake fresh validators — the control
+  (`test_control_allFresh_lowCampWins`, all fresh) resolves to `2000`. Same
+  capital, same votes; the only difference is earned accuracy.
+- Deployed to Arc Testnet (bound to `CrucibleMarketV7`; identity registry
+  dormant): `ScalarResolverV9` — `0xae78729a7656c36215D1676c2Bd2E273aF3343fc`
+  (tx `0xb5868bea…d5d7b0`).
+- +6 tests: **185 forge tests passing.**
+
+### M4 — value-weighted calibration (closes the V9 farming vector)
+
+- `src/v07/ScalarResolverV10.sol` — fixes the calibration-farming vector
+  demonstrated against V9. V9 moved calibration by a FIXED step per resolved
+  market, so a cartel could manufacture a high accuracy record by voting with
+  itself on dust-sized throwaway markets. V10 ties the step to the market's
+  **economic weight**: `step = CALIB_STEP × min(feePool, CALIB_FEE_REFERENCE) /
+  CALIB_FEE_REFERENCE` (feePool = the resolver fee, a fixed bps cut of escrow,
+  hence a faithful proxy for the value settled). A ~zero-fee market moves
+  calibration by ~0; farming therefore costs real economic throughput per step
+  instead of being free. `CALIB_FEE_REFERENCE` is a deploy-time tuning param
+  (immutable; `0` disables value-weighting → identical to V9, for differential
+  tests only).
+- **The fix, proven:** `test_fix_dustFarmingCannotOverrideHonest` replays the V9
+  attack on dust markets — the cartel stays fresh (calibration 4000, not farmed
+  to 12000) and the market now resolves to the honest `2000`, **not** the
+  cartel's `10000`. `test_headline_stillWorks_onValuedMarkets` shows the
+  legitimate mechanism intact: validators that earn calibration on real-value
+  markets still flip `2000 → 8000`. `test_dustMarket_noCalibrationGain` /
+  `test_valuedMarket_calibrationRises` lock the boundary.
+- **Honest residual:** value-weighting kills the *cheap* dust-spam farm; it does
+  not make a *capitalised* self-dealing cartel impossible — a cartel routing real
+  escrow through markets it fully controls recovers most of the fee (it flows
+  back to its own voting validators), so its true cost is gas + capital lockup +
+  commit/reveal time per step, not the fee itself. The deeper fix —
+  cohort-diversity crediting (calibration only for agreement with validators
+  outside the voter's recent cohort) — is the next milestone.
+- Deployed to Arc Testnet (bound to `CrucibleMarketV7`):
+  `ScalarResolverV10` — `0xb377b32a65166bcA3d9b14B8C5c1B636817F4c01`
+  (tx `0x03caf35e…e9ccf`; `CALIB_FEE_REFERENCE = 0.001 ether` testnet floor).
+- +6 tests: **191 forge tests passing.**
+
+---
+
 ## [Unreleased] — 2026-05-12
 
 ### Added — Crucible v0.6 protocol layer
